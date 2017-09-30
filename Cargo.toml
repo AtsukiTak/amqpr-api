@@ -2,6 +2,10 @@
 name = "amqpr-api"
 version = "0.1.0"
 authors = ["AtsukiTak <takatomgoo@gmail.com>"]
+description = "A tokio based amqp api library mainly used by amqpr."
+repository = "https://github.com/AtsukiTak/amqp-api"
+keywords = ["amqp", "rabbitmq"]
+categories = ["network-programming", "amqp", "rabbitmq"]
 
 [dependencies]
 futures = "0.1"
