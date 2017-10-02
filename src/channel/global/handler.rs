@@ -16,7 +16,6 @@ use channel::{LocalChannelController, GlobalChannelController, local};
 const HEARTBEAT_INTERVAL_SEC: u64 = 60;
 
 
-
 #[derive(Debug)]
 pub struct GlobalChannel {
     socket_controller: SocketController,

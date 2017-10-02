@@ -11,3 +11,29 @@ extern crate amqpr_codec;
 pub mod socket;
 pub mod methods;
 pub mod channel;
+
+
+
+///                             +-------------+
+///                             | AMQP Server |
+///                             +------+------+
+///                                    ^
+///                                    |
+///                                    | TCP
+///                                    |
+///                            +-------+-------+
+///                        +-> | SocketHandler | <-+
+///                        |   +---------------+   |
+///                        |                       |
+///       SocketController |                       | SocketController
+///                 +------+-------+        +------+--------+
+///                 | LocalChannel |        | GlobalChannel |
+///                 +------+-------+        +------+--------+
+///                        ^                       ^
+///+------------------------------------------------------------------------+
+///                        |                       |           Library Interface
+///                        |                       |
+///                        |                       |
+///       +----------------+-------+        +------+------------------+
+///       | LocalChannelController |        | GlobalChannelController |
+///       +------------------------+        +-------------------------+
