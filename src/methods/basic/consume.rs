@@ -44,5 +44,5 @@ pub fn consume(args: ConsumeArguments) -> MethodPayload {
 
 fn bits_from_some_arg(args: &ConsumeArguments) -> u8 {
     (args.no_local as u8 * 0b_0000_0001_u8) + (args.no_ack as u8 * 0b_0000_0010_u8) +
-    (args.exclusive as u8 * 0b_0000_0100_u8) + (args.no_wait as u8 * 0b_0000_1000_u8)
+        (args.exclusive as u8 * 0b_0000_0100_u8) + (args.no_wait as u8 * 0b_0000_1000_u8)
 }

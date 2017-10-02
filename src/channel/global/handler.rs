@@ -16,6 +16,7 @@ use channel::{LocalChannelController, GlobalChannelController, local};
 const HEARTBEAT_INTERVAL_SEC: u64 = 60;
 
 
+
 #[derive(Debug)]
 pub struct GlobalChannel {
     socket_controller: SocketController,
@@ -46,7 +47,9 @@ impl GlobalChannel {
             GlobalChannelCommand::ArriveFrame(frame) => self.handle_frame(frame),
             GlobalChannelCommand::DeclareLocalChannel(channel_id, sender) => {
                 let controller = self.declare_local_channel(channel_id);
-                sender.send(controller).expect("Fail to send local channel controlelr");
+                sender.send(controller).expect(
+                    "Fail to send local channel controlelr",
+                );
             }
             GlobalChannelCommand::SendHeartbeatFrame => {
                 self.send_heartbeat_frame();
@@ -82,11 +85,9 @@ impl GlobalChannel {
                 info!("Connection is closed\n{:?}", method);
             }
             (20, 11) => {
-                self.open_channel_notify
-                    .take()
-                    .unwrap()
-                    .send(())
-                    .expect("Fail to send open channel notify");
+                self.open_channel_notify.take().unwrap().send(()).expect(
+                    "Fail to send open channel notify",
+                );
             }
             (20, 40) => {
                 info!("Channel is closed\n{:?}", method);
@@ -127,12 +128,16 @@ impl GlobalChannel {
 
 
     fn declare_local_channel(&mut self, channel_id: u16) -> LocalChannelController {
-        let channel_controller = local::handler::create_channel(channel_id,
-                                                                self.socket_controller.clone(),
-                                                                &self.handle);
+        let channel_controller = local::handler::create_channel(
+            channel_id,
+            self.socket_controller.clone(),
+            &self.handle,
+        );
 
         // Just add new local channel to local_channels field of SocketHandler.
-        self.socket_controller.add_local_channel(channel_controller.clone());
+        self.socket_controller.add_local_channel(
+            channel_controller.clone(),
+        );
 
         channel_controller
     }
@@ -142,11 +147,12 @@ impl GlobalChannel {
 
 type FinishHandshakeNotify = oneshot::Receiver<()>;
 
-pub fn global_channel(socket_controller: SocketController,
-                      handle: &Handle,
-                      user: String,
-                      pass: String)
-                      -> (GlobalChannelController, FinishHandshakeNotify) {
+pub(crate) fn global_channel(
+    socket_controller: SocketController,
+    handle: &Handle,
+    user: String,
+    pass: String,
+) -> (GlobalChannelController, FinishHandshakeNotify) {
 
     let (sender, receiver) = oneshot::channel();
 

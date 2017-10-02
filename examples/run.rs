@@ -5,12 +5,11 @@ extern crate bytes;
 extern crate log4rs;
 
 use tokio_core::reactor::Core;
-use futures::{future, Future, Stream};
-use futures::sync::oneshot::Canceled;
+use futures::{Future, Stream};
 
 use bytes::Bytes;
 
-use amqpr_api::socket::ConnectionManager;
+use amqpr_api::socket_open;
 use amqpr_api::methods::{exchange, queue, basic};
 
 fn main() {
@@ -19,13 +18,13 @@ fn main() {
     let mut core = Core::new().unwrap();
     let handle = core.handle();
 
-    let controller_future = ConnectionManager::open(&"127.0.0.1:5672".parse().unwrap(), &handle)
+    let controller_future = socket_open(&"127.0.0.1:5672".parse().unwrap(), &handle, "test".into(), "test".into())
 
         // Open new channel to perform some operation
-        .and_then(|controller| controller.open_new_channel(42));
+        .and_then(|controller| controller.declare_local_channel(42));
 
 
-    let (global_con, local_con) = core.run(controller_future).unwrap();
+    let (_global_con, local_con) = core.run(controller_future).unwrap();
 
     // Declare Exchange
     let args = exchange::DeclareArguments {
@@ -39,7 +38,8 @@ fn main() {
 
     // Declare Queue
     let args = queue::DeclareArguments {
-        queue_name: "", // If you leave this field empty, Rabbitmq server will chose queue_name randomly.
+        // If you leave this field empty, Rabbitmq server will chose queue_name randomly.
+        queue_name: "",
         durable: true,
         auto_delete: true,
         ..Default::default()
@@ -77,7 +77,7 @@ fn main() {
         println!("You got a new data !!!\n\n\n\n\n{:?}", byte);
         Ok(())
     });
-    core.run(future);
+    core.run(future).unwrap();
 
 
 }

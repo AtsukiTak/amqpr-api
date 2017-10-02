@@ -15,7 +15,7 @@ use channel::{GlobalChannelController, LocalChannelController, global_channel};
 
 
 #[derive(Debug)]
-pub enum SocketCommand {
+pub(crate) enum SocketCommand {
     ArriveFrame(Frame),
     SendFrame(Frame),
     AddChannel(LocalChannelController),
@@ -24,7 +24,7 @@ pub enum SocketCommand {
 
 
 #[derive(Clone, Debug)]
-pub struct SocketController(UnboundedSender<SocketCommand>);
+pub(crate) struct SocketController(UnboundedSender<SocketCommand>);
 
 
 #[derive(Debug)]
@@ -37,11 +37,12 @@ struct SocketHandler {
 }
 
 
-pub fn open(addr: &SocketAddr,
-            handle: &Handle,
-            user: String,
-            pass: String)
-            -> Box<Future<Item = GlobalChannelController, Error = Canceled>> {
+pub fn open(
+    addr: &SocketAddr,
+    handle: &Handle,
+    user: String,
+    pass: String,
+) -> Box<Future<Item = GlobalChannelController, Error = Canceled>> {
 
     // Declare SocketController
     let (socket_command_sender, socket_command_receiver) = unbounded();
@@ -83,16 +84,16 @@ pub fn open(addr: &SocketAddr,
             // Send frame to network.
             handle2.spawn_fn(move || {
                 sink.sink_map_err(|e| {
-                        error!("error : {:?}", e);
-                        ()
-                    })
-                    .send_all(frame_receiver)
+                    error!("error : {:?}", e);
+                    ()
+                }).send_all(frame_receiver)
                     .map(|_| ())
             });
 
             // Receive items from Rabbitmq then send it to handler.
             handle2.spawn_fn(move || {
-                stream.map_err(|err| {
+                stream
+                    .map_err(|err| {
                         error!("error : {:?}", err);
                         ()
                     })
@@ -105,7 +106,9 @@ pub fn open(addr: &SocketAddr,
 
     handle.spawn(future);
 
-    Box::new(finish_handshake_notify.map(move |_| global_channel_controller))
+    Box::new(finish_handshake_notify.map(
+        move |_| global_channel_controller,
+    ))
 }
 
 
@@ -115,10 +118,15 @@ impl SocketHandler {
     fn handle_command(&mut self, command: SocketCommand) {
         match command {
             SocketCommand::AddChannel(controller) => {
-                self.local_channels.insert(controller.channel_id, controller);
+                self.local_channels.insert(
+                    controller.channel_id,
+                    controller,
+                );
             }
             SocketCommand::SendFrame(frame) => {
-                (&self.frame_sender).unbounded_send(frame).expect("Fail to send frame");
+                (&self.frame_sender).unbounded_send(frame).expect(
+                    "Fail to send frame",
+                );
             }
             SocketCommand::ArriveFrame(frame) => {
                 debug!("New frame is arrived\n{:?}", frame);
@@ -143,13 +151,13 @@ impl SocketController {
             .expect("Fail to send SocketCommand");
     }
 
-    pub fn send_frame(&self, frame: Frame) {
+    pub(crate) fn send_frame(&self, frame: Frame) {
         (&self.0)
             .unbounded_send(SocketCommand::SendFrame(frame))
             .expect("Fail to send SocketCommand");
     }
 
-    pub fn add_local_channel(&self, controller: LocalChannelController) {
+    pub(crate) fn add_local_channel(&self, controller: LocalChannelController) {
         (&self.0)
             .unbounded_send(SocketCommand::AddChannel(controller))
             .expect("Fail to send SocketCommand");

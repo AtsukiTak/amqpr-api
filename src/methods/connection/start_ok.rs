@@ -27,12 +27,16 @@ fn client_properties() -> FieldTable {
     let version = FieldArgument::LongString(LongString(format!("0.0.1")));
     let platform = FieldArgument::LongString(LongString(format!("Rust stable 1.19")));
     let copyright = FieldArgument::LongString(LongString(format!("Copyright (C) 2017 Atsuki-Tak")));
-    let information = FieldArgument::LongString(LongString(format!("Do not use this library for production")));
-    FieldTable(vec![(format!("product"), product),
-                    (format!("version"), version),
-                    (format!("platform"), platform),
-                    (format!("copyright"), copyright),
-                    (format!("information"), information)])
+    let information = FieldArgument::LongString(LongString(
+        format!("Do not use this library for production"),
+    ));
+    FieldTable(vec![
+        (format!("product"), product),
+        (format!("version"), version),
+        (format!("platform"), platform),
+        (format!("copyright"), copyright),
+        (format!("information"), information),
+    ])
 }
 
 

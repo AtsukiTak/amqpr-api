@@ -29,8 +29,14 @@ pub fn bind(args: BindArguments) -> MethodPayload {
     let bits = Argument::Bits(bits_from_some_arg(&args));
     let table = Argument::FieldTable(FieldTable(Vec::new()));
 
-    let arguments =
-        Arguments(vec![reserved_1, queue_name, exchange_name, routing_key, bits, table]);
+    let arguments = Arguments(vec![
+        reserved_1,
+        queue_name,
+        exchange_name,
+        routing_key,
+        bits,
+        table,
+    ]);
 
     MethodPayload {
         class_id: 50,

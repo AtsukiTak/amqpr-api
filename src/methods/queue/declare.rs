@@ -43,6 +43,6 @@ pub fn declare(args: DeclareArguments) -> MethodPayload {
 
 fn bits_from_some_arg(args: &DeclareArguments) -> u8 {
     (args.passive as u8 * 0b00000001_u8) + (args.durable as u8 * 0b00000010_u8) +
-    (args.exclusive as u8 * 0b00000100_u8) + (args.auto_delete as u8 * 0b00001000_u8) +
-    (args.no_wait as u8 * 0b00010000_u8)
+        (args.exclusive as u8 * 0b00000100_u8) + (args.auto_delete as u8 * 0b00001000_u8) +
+        (args.no_wait as u8 * 0b00010000_u8)
 }

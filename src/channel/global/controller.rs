@@ -27,16 +27,23 @@ impl GlobalChannelController {
     // It will be registered in SocketManager but not AMQP server
     // so you MUST call `LocalChannelController::init()` function
     // before using that channel.
-    pub fn declare_local_channel(self,
-                                 channel_id: u16)
-                                 -> Box<Future<Item = (GlobalChannelController,
-                                                       LocalChannelController),
-                                               Error = oneshot::Canceled>> {
+    pub fn declare_local_channel(
+        self,
+        channel_id: u16,
+    ) -> Box<
+        Future<
+            Item = (GlobalChannelController, LocalChannelController),
+            Error = oneshot::Canceled,
+        >,
+    > {
 
         let (sender, receiver) = oneshot::channel();
 
         self.0
-            .unbounded_send(GlobalChannelCommand::DeclareLocalChannel(channel_id, sender))
+            .unbounded_send(GlobalChannelCommand::DeclareLocalChannel(
+                channel_id,
+                sender,
+            ))
             .expect("Fail to send command");
 
         Box::new(receiver.map(move |local| (self, local)))

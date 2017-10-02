@@ -75,9 +75,11 @@ impl LocalChannelController {
         let content_body_frame = self.content_body_frame(bytes);
 
         self.command_sender
-            .unbounded_send(LocalChannelCommand::Publish(method_frame,
-                                                         content_header_frame,
-                                                         content_body_frame))
+            .unbounded_send(LocalChannelCommand::Publish(
+                method_frame,
+                content_header_frame,
+                content_body_frame,
+            ))
             .expect("Fail to send item");
     }
 

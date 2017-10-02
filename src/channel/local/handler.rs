@@ -88,11 +88,9 @@ impl LocalChannel {
     fn handle_method(&mut self, method: MethodPayload) {
         match (method.class_id, method.method_id) {
             (20, 11) => {
-                self.open_channel_notify
-                    .take()
-                    .unwrap()
-                    .send(())
-                    .expect("Fail to send notify");
+                self.open_channel_notify.take().unwrap().send(()).expect(
+                    "Fail to send notify",
+                );
             }
             (20, 40) => {
                 info!("Channel is closed.\n{:?}", method);
@@ -149,7 +147,9 @@ impl LocalChannel {
         debug!("Get content body : {:?}", body);
 
         if let Some(ref consume_sink) = self.consume_sink {
-            consume_sink.unbounded_send(body.bytes).expect("Fail to send content body");
+            consume_sink.unbounded_send(body.bytes).expect(
+                "Fail to send content body",
+            );
         } else {
             unreachable!();
         }
@@ -170,10 +170,11 @@ impl LocalChannel {
 
 
 
-pub fn create_channel(channel_id: u16,
-                      socket_controller: SocketController,
-                      handle: &Handle)
-                      -> LocalChannelController {
+pub(crate) fn create_channel(
+    channel_id: u16,
+    socket_controller: SocketController,
+    handle: &Handle,
+) -> LocalChannelController {
 
     let (command_sender, command_receiver) = unbounded();
 
