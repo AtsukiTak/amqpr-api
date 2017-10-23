@@ -12,11 +12,13 @@ categories = ["network-programming", "encoding"]
 futures = "0.1"
 tokio-core = "0.1"
 tokio-io = "0.1"
-
 bytes = "0.4"
-
-error-chain = "0.10"
-log4rs = "0.7"
+sasl = "0.4"
 log = "0.3"
+error-chain = "0.11"
 
-amqpr-codec = "0.1"
+# amqpr-codec = "0.2"
+amqpr-codec = { path = "../amqpr-codec" }
+
+[dev-dependencies]
+log4rs = "0.7"

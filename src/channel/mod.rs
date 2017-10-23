@@ -1,6 +1,3 @@
-pub mod global;
-pub mod local;
+pub mod open;
 
-pub use self::global::GlobalChannelController;
-pub(crate) use self::global::global_channel;
-pub use self::local::LocalChannelController;
+pub use self::open::open_channel;
