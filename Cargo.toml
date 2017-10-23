@@ -1,6 +1,6 @@
 [package]
 name = "amqpr-api"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["AtsukiTak <takatomgoo@gmail.com>"]
 license = "MIT/Apache-2.0"
 description = "A tokio based amqp api library mainly used by amqpr."
@@ -13,12 +13,10 @@ futures = "0.1"
 tokio-core = "0.1"
 tokio-io = "0.1"
 bytes = "0.4"
-sasl = "0.4"
 log = "0.3"
 error-chain = "0.11"
 
-# amqpr-codec = "0.2"
-amqpr-codec = { path = "../amqpr-codec" }
+amqpr-codec = "0.2"
 
 [dev-dependencies]
 log4rs = "0.7"

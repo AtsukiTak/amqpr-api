@@ -7,7 +7,6 @@ extern crate tokio_core;
 extern crate tokio_io;
 extern crate futures;
 extern crate bytes;
-extern crate sasl;
 #[macro_use]
 extern crate log;
 #[macro_use]
