@@ -7,6 +7,7 @@ description = "A tokio future based amqp api library"
 repository = "https://github.com/AtsukiTak/amqpr-api"
 keywords = ["amqp", "rabbitmq"]
 categories = ["network-programming", "asynchronous"]
+readme = "README.md"
 
 [dependencies]
 futures = "0.1"
