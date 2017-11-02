@@ -7,16 +7,14 @@ extern crate log4rs;
 
 use tokio_core::reactor::Core;
 use tokio_core::net::TcpStream;
-use futures::{Future, Stream};
+use futures::{Future, Stream, Sink};
 use futures::stream::unfold;
 
-use bytes::Bytes;
-
-use amqpr_api::{start_handshake, declare_exchange, open_channel, publish, bind_queue,
+use amqpr_api::{start_handshake, declare_exchange, open_channel, bind_queue,
                 declare_queue, start_consume, receive_delivered};
 use amqpr_api::exchange::declare::{ExchangeType, DeclareExchangeOption};
 use amqpr_api::queue::{DeclareQueueOption, BindQueueOption};
-use amqpr_api::basic::{PublishOption, StartConsumeOption};
+use amqpr_api::basic::{StartConsumeOption};
 use amqpr_api::handshake::SimpleHandshaker;
 use amqpr_api::errors::*;
 
@@ -37,8 +35,17 @@ fn main() {
     let future = TcpStream::connect(&"127.0.0.1:5672".parse().unwrap(), &core.handle())
         .map_err(|e| Error::from(e))
         .and_then(|socket| start_handshake(handshaker, socket))
-        .and_then(|socket| open_channel(socket, LOCAL_CHANNEL_ID))
-        .and_then(|socket| {
+        .and_then(|socket| Ok(socket.split()))
+        .and_then(|(outcome, income)| {
+            Ok((
+                income.map_err(|e| Error::from(e)),
+                outcome.sink_map_err(|e| Error::from(e)),
+            ))
+        })
+        .and_then(|(income, outcome)| {
+            open_channel(income, outcome, LOCAL_CHANNEL_ID)
+        })
+        .and_then(|(income, outcome)| {
             let option = DeclareExchangeOption {
                 name: "example".into(),
                 typ: ExchangeType::Fanout,
@@ -48,9 +55,9 @@ fn main() {
                 is_internal: false,
                 is_no_wait: false,
             };
-            declare_exchange(socket, LOCAL_CHANNEL_ID, option)
+            declare_exchange(income, outcome, LOCAL_CHANNEL_ID, option)
         })
-        .and_then(|socket| {
+        .and_then(|(income, outcome)| {
             let option = DeclareQueueOption {
                 name: "example".into(),
                 is_passive: false,
@@ -59,18 +66,18 @@ fn main() {
                 is_auto_delete: true,
                 is_no_wait: false,
             };
-            declare_queue(socket, LOCAL_CHANNEL_ID, option).map(|(_result, socket)| socket)
+            declare_queue(income, outcome, LOCAL_CHANNEL_ID, option)
         })
-        .and_then(|socket| {
+        .and_then(|(_res, income, outcome)| {
             let option = BindQueueOption {
                 queue: "example".into(),
                 exchange: "example".into(),
                 routing_key: "".into(),
                 is_no_wait: false,
             };
-            bind_queue(socket, LOCAL_CHANNEL_ID, option)
+            bind_queue(income, outcome, LOCAL_CHANNEL_ID, option)
         })
-        .and_then(|socket| {
+        .and_then(|(income, outcome)| {
             let option = StartConsumeOption {
                 queue: "example".into(),
                 consumer_tag: "".into(),
@@ -79,10 +86,10 @@ fn main() {
                 is_exclusive: false,
                 is_no_wait: false,
             };
-            start_consume(socket, LOCAL_CHANNEL_ID, option)
+            start_consume::<_, _, Error>(income, outcome, LOCAL_CHANNEL_ID, option)
         })
-        .and_then(|socket| {
-            unfold(socket, |socket| Some(receive_delivered(socket)))
+        .and_then(|(income, _outcome)| {
+            unfold(income, |income| Some(receive_delivered(income)))
                 .for_each(|bytes| Ok(println!("{:?}", bytes)))
         });
 

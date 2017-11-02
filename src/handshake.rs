@@ -127,7 +127,10 @@ impl Handshaker for SimpleHandshaker {
             map.insert("version".into(), LongString("0.2".into()));
             map.insert("platform".into(), LongString("Rust stable".into()));
             map.insert("copyright".into(), LongString("(C) 2017 Atsuki-Tak".into()));
-            map.insert("information".into(), LongString("It still be developing".into()));
+            map.insert(
+                "information".into(),
+                LongString("It still be developing".into()),
+            );
             map
         };
 

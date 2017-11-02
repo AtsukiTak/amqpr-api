@@ -2,20 +2,27 @@ use amqpr_codec::{Frame, FrameHeader, FramePayload};
 use amqpr_codec::method::MethodPayload;
 use amqpr_codec::method::exchange::{ExchangeClass, DeclareMethod};
 
-use futures::{Future, Poll, Async};
+use futures::{Future, Stream, Sink, Poll, Async};
 
 use std::collections::HashMap;
+use std::borrow::Borrow;
 
-use AmqpSocket;
 use common::{send_and_receive, SendAndReceive};
 use errors::*;
 
 
-pub fn declare_exchange(
-    socket: AmqpSocket,
+pub fn declare_exchange<In, Out, E>(
+    income: In,
+    outcome: Out,
     channel_id: u16,
     option: DeclareExchangeOption,
-) -> ExchangeDeclared {
+) -> ExchangeDeclared<In, Out>
+where
+    In: Stream<Error = E>,
+    Out: Sink<SinkItem = Frame, SinkError = E>,
+    E: From<Error>,
+    In::Item: Borrow<Frame>,
+{
     let declare = DeclareMethod {
         reserved1: 0,
         exchange: option.name,
@@ -32,31 +39,41 @@ pub fn declare_exchange(
         header: FrameHeader { channel: channel_id },
         payload: FramePayload::Method(MethodPayload::Exchange(ExchangeClass::Declare(declare))),
     };
-    ExchangeDeclared { process: send_and_receive(socket, frame) }
-}
 
-
-
-pub struct ExchangeDeclared {
-    process: SendAndReceive,
-}
-
-
-impl Future for ExchangeDeclared {
-    type Item = AmqpSocket;
-    type Error = Error;
-
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        let (frame, socket) = try_ready!(self.process);
+    let find_declare_ok: fn(&Frame) -> bool = |frame| {
         frame
             .method()
             .and_then(|m| m.exchange())
             .and_then(|c| c.declare_ok())
-            .ok_or(Error::from(ErrorKind::UnexpectedFrame))
-            .map(move |_| {
-                info!("Declared an exchange");
-                Async::Ready(socket)
-            })
+            .is_some()
+    };
+
+    ExchangeDeclared { process: send_and_receive(frame, income, outcome, find_declare_ok) }
+}
+
+
+
+pub struct ExchangeDeclared<In, Out>
+where
+    Out: Sink,
+{
+    process: SendAndReceive<In, Out, fn(&Frame) -> bool>,
+}
+
+
+impl<In, Out, E> Future for ExchangeDeclared<In, Out>
+where
+    In: Stream<Error = E>,
+    Out: Sink<SinkItem = Frame, SinkError = E>,
+    E: From<Error>,
+    In::Item: Borrow<Frame>,
+{
+    type Item = (In, Out);
+    type Error = E;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        let (_dec_ok, income, outcome) = try_ready!(self.process);
+        Ok(Async::Ready((income, outcome)))
     }
 }
 

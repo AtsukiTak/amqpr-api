@@ -9,20 +9,12 @@ use bytes::Bytes;
 use futures::{Future, Sink, Poll, Async};
 use futures::sink::Send;
 
-use std::io::Error as IoError;
-
-use AmqpSocket;
 use common::Should;
 
 
-pub fn publish<E>(
-    socket: AmqpSocket,
-    channel_id: u16,
-    bytes: Bytes,
-    option: PublishOption,
-) -> Published<E>
+pub fn publish<S>(sink: S, channel_id: u16, bytes: Bytes, option: PublishOption) -> Published<S>
 where
-    E: From<IoError>,
+    S: Sink<SinkItem = Frame>,
 {
     let declare = PublishMethod {
         reserved1: 0,
@@ -39,10 +31,9 @@ where
 
     debug!("Sending publish method : {:?}", frame);
     Published {
-        state: SendingContentState::SendingPublishMethod(socket.send(frame)),
+        state: SendingContentState::SendingPublishMethod(sink.send(frame)),
         bytes: Should::new(bytes),
         channel_id: channel_id,
-        phantom: ::std::marker::PhantomData,
     }
 }
 
@@ -58,31 +49,33 @@ pub struct PublishOption {
 
 
 // Published struct {{{
-pub struct Published<E>
+pub struct Published<S>
 where
-    E: From<IoError>,
+    S: Sink<SinkItem = Frame>,
 {
-    state: SendingContentState,
+    state: SendingContentState<S>,
     bytes: Should<Bytes>,
     channel_id: u16,
-    phantom: ::std::marker::PhantomData<E>,
 }
 
-pub enum SendingContentState {
-    SendingPublishMethod(Send<AmqpSocket>),
-    SendingContentHeader(Send<AmqpSocket>),
-    SendingContentBody(Send<AmqpSocket>),
-}
-
-
-impl<E> Future for Published<E>
+pub enum SendingContentState<S>
 where
-    E: From<IoError>,
+    S: Sink<SinkItem = Frame>,
 {
-    type Item = AmqpSocket;
-    type Error = E;
+    SendingPublishMethod(Send<S>),
+    SendingContentHeader(Send<S>),
+    SendingContentBody(Send<S>),
+}
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+
+impl<S> Future for Published<S>
+where
+    S: Sink<SinkItem = Frame>,
+{
+    type Item = S;
+    type Error = S::SinkError;
+
+    fn poll(&mut self) -> Poll<S, S::SinkError> {
 
         use self::SendingContentState::*;
         self.state = match &mut self.state {

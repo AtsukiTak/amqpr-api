@@ -1,4 +1,5 @@
 extern crate amqpr_api;
+extern crate amqpr_codec;
 extern crate tokio_core;
 extern crate futures;
 extern crate bytes;
@@ -7,9 +8,11 @@ extern crate log4rs;
 
 use tokio_core::reactor::{Core, Interval};
 use tokio_core::net::TcpStream;
-use futures::{Future, Stream};
+use futures::{Future, Stream, Sink};
 
 use bytes::Bytes;
+
+use amqpr_codec::Frame;
 
 use amqpr_api::{start_handshake, declare_exchange, open_channel, publish, AmqpSocket};
 use amqpr_api::exchange::declare::{ExchangeType, DeclareExchangeOption};
@@ -35,8 +38,12 @@ fn main() {
     let future = TcpStream::connect(&"127.0.0.1:5672".parse().unwrap(), &core.handle())
         .map_err(|e| Error::from(e))
         .and_then(|socket| start_handshake(handshaker, socket))
-        .and_then(|socket| open_channel(socket, LOCAL_CHANNEL_ID))
-        .and_then(|socket| {
+        .and_then(|socket| Ok(socket.split()))
+        .and_then(|(outcome, income)| Ok((income.map_err(|e| Error::from(e)), outcome.sink_map_err(|e| Error::from(e)))))
+        .and_then(|(income, outcome)| {
+            open_channel(income, outcome, LOCAL_CHANNEL_ID)
+        })
+        .and_then(|(income, outcome)| {
             let option = DeclareExchangeOption {
                 name: "example".into(),
                 typ: ExchangeType::Fanout,
@@ -46,21 +53,23 @@ fn main() {
                 is_internal: false,
                 is_no_wait: false,
             };
-            declare_exchange(socket, LOCAL_CHANNEL_ID, option)
+            declare_exchange(income, outcome, LOCAL_CHANNEL_ID, option)
         })
-        .and_then(move |socket| {
+        .and_then(move |(income, outcome)| {
             let interval = Interval::new(std::time::Duration::new(1, 0), &handle).unwrap();
             interval
-                .fold(socket, |socket, _| inner_publish::<std::io::Error>(socket))
                 .map_err(|e| Error::from(e))
+                .fold(outcome, |outcome, _| {
+                    inner_publish(outcome)
+                })
         });
 
     core.run(future).unwrap();
 }
 
-fn inner_publish<E>(socket: AmqpSocket) -> Published<E>
+fn inner_publish<Out>(outcome: Out) -> Published<Out>
 where
-    E: From<std::io::Error>,
+    Out: Sink<SinkItem = Frame>,
 {
     let option = PublishOption {
         exchange: "example".into(),
@@ -69,7 +78,7 @@ where
         is_immediate: false,
     };
     let bytes = Bytes::from_static(b"pubish example");
-    publish(socket, LOCAL_CHANNEL_ID, bytes, option)
+    publish(outcome, LOCAL_CHANNEL_ID, bytes, option)
 }
 
 

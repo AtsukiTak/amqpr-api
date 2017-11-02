@@ -3,20 +3,27 @@ use amqpr_codec::method::MethodPayload;
 use amqpr_codec::method::queue::{QueueClass, DeclareMethod};
 pub use amqpr_codec::method::queue::DeclareOkMethod as DeclareResult;
 
-use futures::{Future, Poll, Async};
+use futures::{Future, Stream, Sink, Poll, Async};
 
 use std::collections::HashMap;
+use std::borrow::Borrow;
 
-use AmqpSocket;
 use common::{send_and_receive, SendAndReceive};
 use errors::*;
 
 
-pub fn declare_queue(
-    socket: AmqpSocket,
+pub fn declare_queue<In, Out, E>(
+    income: In,
+    outcome: Out,
     channel_id: u16,
     option: DeclareQueueOption,
-) -> QueueDeclared {
+) -> QueueDeclared<In, Out>
+where
+    In: Stream<Error = E>,
+    In::Item: Borrow<Frame>,
+    Out: Sink<SinkItem = Frame, SinkError = E>,
+    E: From<Error>,
+{
     let declare = DeclareMethod {
         reserved1: 0,
         queue: option.name,
@@ -32,31 +39,47 @@ pub fn declare_queue(
         header: FrameHeader { channel: channel_id },
         payload: FramePayload::Method(MethodPayload::Queue(QueueClass::Declare(declare))),
     };
-    QueueDeclared { process: send_and_receive(socket, frame) }
-}
 
-
-
-pub struct QueueDeclared {
-    process: SendAndReceive,
-}
-
-
-impl Future for QueueDeclared {
-    type Item = (DeclareResult, AmqpSocket);
-    type Error = Error;
-
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        let (frame, socket) = try_ready!(self.process);
+    let find_dec_ok: fn(&Frame) -> bool = |frame| {
         frame
             .method()
             .and_then(|m| m.queue())
             .and_then(|c| c.declare_ok())
-            .ok_or(Error::from(ErrorKind::UnexpectedFrame))
-            .map(move |r| {
-                info!("Declare ok method is received : {:?}", r);
-                Async::Ready((r.clone(), socket))
-            })
+            .is_some()
+    };
+    QueueDeclared { process: send_and_receive(frame, income, outcome, find_dec_ok) }
+}
+
+
+
+pub struct QueueDeclared<In, Out>
+where
+    Out: Sink,
+{
+    process: SendAndReceive<In, Out, fn(&Frame) -> bool>,
+}
+
+
+impl<In, Out, E> Future for QueueDeclared<In, Out>
+where
+    In: Stream<Error = E>,
+    In::Item: Borrow<Frame>,
+    Out: Sink<SinkItem = Frame, SinkError = E>,
+    E: From<Error>,
+{
+    type Item = (DeclareResult, In, Out);
+    type Error = E;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        let (frame, income, outcome) = try_ready!(self.process);
+        let dec_ok = frame
+            .borrow()
+            .method()
+            .and_then(|m| m.queue())
+            .and_then(|c| c.declare_ok())
+            .unwrap()
+            .clone();
+        Ok(Async::Ready((dec_ok, income, outcome)))
     }
 }
 

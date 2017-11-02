@@ -6,6 +6,7 @@
 extern crate tokio_core;
 extern crate tokio_io;
 extern crate futures;
+extern crate ex_futures;
 extern crate bytes;
 #[macro_use]
 extern crate log;
@@ -20,9 +21,9 @@ macro_rules! poll_item {
         match $socket.poll() {
             Ok(::futures::Async::Ready(Some(frame))) => frame,
             Ok(::futures::Async::Ready(None)) =>
-                return Err(::errors::Error::from(::errors::ErrorKind::UnexpectedConnectionClose)),
+                return Err(::errors::Error::from(::errors::ErrorKind::UnexpectedConnectionClose).into()),
             Ok(::futures::Async::NotReady) => return Ok(::futures::Async::NotReady),
-            Err(e) => return Err(::errors::Error::from(e)),
+            Err(e) => return Err(e.into()),
         }
     }
 }
@@ -37,10 +38,12 @@ macro_rules! try_ready {
     }
 }
 
+
 pub mod channel;
 pub mod exchange;
 pub mod queue;
 pub mod basic;
+pub mod heartbeat;
 
 pub mod handshake;
 pub mod errors;
@@ -52,7 +55,7 @@ pub use channel::open_channel;
 pub use exchange::declare_exchange;
 pub use queue::{declare_queue, bind_queue};
 pub use basic::{publish, receive_delivered, start_consume};
-
+pub use heartbeat::send_heartbeat;
 
 
 pub type AmqpSocket = tokio_io::codec::Framed<tokio_core::net::TcpStream, amqpr_codec::Codec>;

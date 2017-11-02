@@ -2,20 +2,27 @@ use amqpr_codec::{Frame, FrameHeader, FramePayload};
 use amqpr_codec::method::MethodPayload;
 use amqpr_codec::method::basic::{BasicClass, ConsumeMethod};
 
-use futures::{Future, Poll, Async};
+use futures::{Future, Stream, Sink, Poll, Async};
 
 use std::collections::HashMap;
+use std::borrow::Borrow;
 
-use AmqpSocket;
 use common::{send_and_receive, SendAndReceive};
 use errors::*;
 
 
-pub fn start_consume(
-    socket: AmqpSocket,
+pub fn start_consume<In, Out, E>(
+    income: In,
+    outcome: Out,
     channel_id: u16,
     option: StartConsumeOption,
-) -> ConsumeStarted {
+) -> ConsumeStarted<In, Out>
+where
+    In: Stream,
+    In::Item: Borrow<Frame>,
+    Out: Sink<SinkItem = Frame>,
+    E: From<Error>,
+{
     let consume = ConsumeMethod {
         reserved1: 0,
         queue: option.queue,
@@ -31,32 +38,18 @@ pub fn start_consume(
         header: FrameHeader { channel: channel_id },
         payload: FramePayload::Method(MethodPayload::Basic(BasicClass::Consume(consume))),
     };
-    ConsumeStarted { process: send_and_receive(socket, frame) }
-}
 
-
-
-pub struct ConsumeStarted {
-    process: SendAndReceive,
-}
-
-
-impl Future for ConsumeStarted {
-    type Item = AmqpSocket;
-    type Error = Error;
-
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        let (frame, socket) = try_ready!(self.process);
+    let find_consume_ok: fn(&Frame) -> bool = |frame| {
         frame
             .method()
-            .and_then(|m| m.basic())
-            .and_then(|c| c.consume_ok())
-            .ok_or(Error::from(ErrorKind::UnexpectedFrame))
-            .map(move |_| {
-                info!("Consume is started");
-                Async::Ready(socket)
-            })
-    }
+            .and_then(|c| c.basic())
+            .and_then(|m| m.consume_ok())
+            .is_some()
+    };
+
+    let process = send_and_receive(frame, income, outcome, find_consume_ok);
+
+    ConsumeStarted { process: process }
 }
 
 
@@ -67,4 +60,30 @@ pub struct StartConsumeOption {
     pub is_no_ack: bool,
     pub is_exclusive: bool,
     pub is_no_wait: bool,
+}
+
+
+
+pub struct ConsumeStarted<In, Out>
+where
+    Out: Sink,
+{
+    process: SendAndReceive<In, Out, fn(&Frame) -> bool>,
+}
+
+
+impl<In, Out, E> Future for ConsumeStarted<In, Out>
+where
+    In: Stream<Error = E>,
+    In::Item: Borrow<Frame>,
+    Out: Sink<SinkItem = Frame, SinkError = E>,
+    E: From<Error>,
+{
+    type Item = (In, Out);
+    type Error = E;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        let (_consume_ok, income, outcome) = try_ready!(self.process);
+        Ok(Async::Ready((income, outcome)))
+    }
 }
