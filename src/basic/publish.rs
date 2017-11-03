@@ -39,6 +39,7 @@ where
 
 
 
+#[derive(Clone, Debug)]
 pub struct PublishOption {
     pub exchange: String,
     pub routing_key: String,

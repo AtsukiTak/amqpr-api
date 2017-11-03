@@ -53,6 +53,7 @@ where
 }
 
 
+#[derive(Debug, Clone)]
 pub struct StartConsumeOption {
     pub queue: String,
     pub consumer_tag: String,

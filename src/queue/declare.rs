@@ -84,6 +84,7 @@ where
 }
 
 
+#[derive(Clone, Debug)]
 pub struct DeclareQueueOption {
     pub name: String,
     pub is_passive: bool,

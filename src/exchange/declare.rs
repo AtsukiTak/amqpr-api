@@ -78,6 +78,7 @@ where
 }
 
 
+#[derive(Debug, Clone)]
 pub struct DeclareExchangeOption {
     pub name: String,
     pub typ: ExchangeType,
@@ -88,6 +89,7 @@ pub struct DeclareExchangeOption {
     pub is_no_wait: bool,
 }
 
+#[derive(Debug, Clone)]
 pub enum ExchangeType {
     Direct,
     Fanout,
