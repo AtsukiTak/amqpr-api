@@ -12,12 +12,12 @@ use common::{send_and_receive, SendAndReceive};
 use errors::*;
 
 
-pub fn declare_queue<In, Out, E>(
+pub fn declare_queue_wait<In, Out, E>(
     income: In,
     outcome: Out,
     channel_id: u16,
     option: DeclareQueueOption,
-) -> QueueDeclared<In, Out>
+) -> QueueDeclaredWait<In, Out>
 where
     In: Stream<Error = E>,
     In::Item: Borrow<Frame>,
@@ -31,7 +31,7 @@ where
         durable: option.is_durable,
         exclusive: option.is_exclusive,
         auto_delete: option.is_auto_delete,
-        no_wait: option.is_no_wait,
+        no_wait: false,
         arguments: HashMap::new(),
     };
 
@@ -47,12 +47,12 @@ where
             .and_then(|c| c.declare_ok())
             .is_some()
     };
-    QueueDeclared { process: send_and_receive(frame, income, outcome, find_dec_ok) }
+    QueueDeclaredWait { process: send_and_receive(frame, income, outcome, find_dec_ok) }
 }
 
 
 
-pub struct QueueDeclared<In, Out>
+pub struct QueueDeclaredWait<In, Out>
 where
     Out: Sink,
 {
@@ -60,7 +60,7 @@ where
 }
 
 
-impl<In, Out, E> Future for QueueDeclared<In, Out>
+impl<In, Out, E> Future for QueueDeclaredWait<In, Out>
 where
     In: Stream<Error = E>,
     In::Item: Borrow<Frame>,
