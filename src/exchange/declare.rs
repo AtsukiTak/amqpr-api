@@ -14,6 +14,7 @@ use errors::*;
 /// Declare exchange synchronously.
 /// That means we will wait to receive `Declare-Ok` method after send `Declare` method.
 /// If you want not to wait receiving, you should use `declare_exchange` instead.
+/// This function ignore "is_no_wait" flag of option.
 pub fn declare_exchange_wait<In, Out, E>(
     income: In,
     outcome: Out,
@@ -34,7 +35,7 @@ where
         durable: option.is_durable,
         auto_delete: option.is_auto_delete,
         internal: option.is_internal,
-        no_wait: option.is_no_wait,
+        no_wait: false,
         arguments: HashMap::new(),
     };
 
