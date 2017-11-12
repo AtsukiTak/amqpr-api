@@ -3,6 +3,7 @@ use amqpr_codec::method::MethodPayload;
 use amqpr_codec::method::exchange::{ExchangeClass, DeclareMethod};
 
 use futures::{Future, Stream, Sink, Poll, Async};
+use futures::sink::Send;
 
 use std::collections::HashMap;
 use std::borrow::Borrow;
@@ -11,8 +12,15 @@ use common::{send_and_receive, SendAndReceive};
 use errors::*;
 
 
+/// Declare an exchange with option.
+/// If "is_no_wait" flag of option is active, you MUST set "income" argument.
+/// If "is_no_wait" flag of option is inactibe, you don't need to set "income" argument, it will be
+/// ignored.
+///
+/// # Panic
+/// If "income" field is `None` when "is_no_wait" flag is active.
 pub fn declare_exchange<In, Out, E>(
-    income: In,
+    income: Option<In>,
     outcome: Out,
     channel_id: u16,
     option: DeclareExchangeOption,
@@ -23,6 +31,8 @@ where
     E: From<Error>,
     In::Item: Borrow<Frame>,
 {
+    let no_wait = option.is_no_wait;
+
     let declare = DeclareMethod {
         reserved1: 0,
         exchange: option.name,
@@ -40,24 +50,29 @@ where
         payload: FramePayload::Method(MethodPayload::Exchange(ExchangeClass::Declare(declare))),
     };
 
-    let find_declare_ok: fn(&Frame) -> bool = |frame| {
-        frame
-            .method()
-            .and_then(|m| m.exchange())
-            .and_then(|c| c.declare_ok())
-            .is_some()
-    };
+    if no_wait {
+        ExchangeDeclared::NoWait(outcome.send(frame))
+    } else {
+        let find_declare_ok: fn(&Frame) -> bool = |frame| {
+            frame
+                .method()
+                .and_then(|m| m.exchange())
+                .and_then(|c| c.declare_ok())
+                .is_some()
+        };
 
-    ExchangeDeclared { process: send_and_receive(frame, income, outcome, find_declare_ok) }
+        ExchangeDeclared::Wait(send_and_receive(frame, income.unwrap(), outcome, find_declare_ok))
+    }
 }
 
 
 
-pub struct ExchangeDeclared<In, Out>
+pub enum ExchangeDeclared<In, Out>
 where
     Out: Sink,
 {
-    process: SendAndReceive<In, Out, fn(&Frame) -> bool>,
+    NoWait(Send<Out>),
+    Wait(SendAndReceive<In, Out, fn(&Frame) -> bool>),
 }
 
 
@@ -68,12 +83,21 @@ where
     E: From<Error>,
     In::Item: Borrow<Frame>,
 {
-    type Item = (In, Out);
+    type Item = (Option<In>, Out);
     type Error = E;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        let (_dec_ok, income, outcome) = try_ready!(self.process);
-        Ok(Async::Ready((income, outcome)))
+        use self::ExchangeDeclared::*;
+        match self {
+            &mut NoWait(ref mut sending) => {
+                let outcome = try_ready!(sending);
+                Ok(Async::Ready((None, outcome)))
+            }
+            &mut Wait(ref mut process) => {
+                let (_dec_ok, income, outcome) = try_ready!(process);
+                Ok(Async::Ready((Some(income), outcome)))
+            }
+        }
     }
 }
 
