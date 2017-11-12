@@ -14,7 +14,7 @@ use bytes::Bytes;
 
 use amqpr_codec::Frame;
 
-use amqpr_api::{start_handshake, declare_exchange, open_channel, publish, AmqpSocket};
+use amqpr_api::{start_handshake, declare_exchange_wait, open_channel, publish, AmqpSocket};
 use amqpr_api::exchange::declare::{ExchangeType, DeclareExchangeOption};
 use amqpr_api::basic::publish::{PublishOption, Published};
 use amqpr_api::handshake::SimpleHandshaker;
@@ -51,11 +51,11 @@ fn main() {
                 is_durable: false,
                 is_auto_delete: true,
                 is_internal: false,
-                is_no_wait: false,
+                is_no_wait: true,
             };
-            declare_exchange(income, outcome, LOCAL_CHANNEL_ID, option)
+            declare_exchange_wait(income, outcome, LOCAL_CHANNEL_ID, option)
         })
-        .and_then(move |(income, outcome)| {
+        .and_then(move |(_income, outcome)| {
             let interval = Interval::new(std::time::Duration::new(1, 0), &handle).unwrap();
             interval
                 .map_err(|e| Error::from(e))

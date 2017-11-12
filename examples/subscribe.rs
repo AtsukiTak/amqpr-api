@@ -10,11 +10,11 @@ use tokio_core::net::TcpStream;
 use futures::{Future, Stream, Sink};
 use futures::stream::unfold;
 
-use amqpr_api::{start_handshake, declare_exchange, open_channel, bind_queue,
-                declare_queue, start_consume, receive_delivered};
+use amqpr_api::{start_handshake, declare_exchange_wait, open_channel, bind_queue, declare_queue,
+                start_consume, receive_delivered};
 use amqpr_api::exchange::declare::{ExchangeType, DeclareExchangeOption};
 use amqpr_api::queue::{DeclareQueueOption, BindQueueOption};
-use amqpr_api::basic::{StartConsumeOption};
+use amqpr_api::basic::StartConsumeOption;
 use amqpr_api::handshake::SimpleHandshaker;
 use amqpr_api::errors::*;
 
@@ -53,9 +53,9 @@ fn main() {
                 is_durable: false,
                 is_auto_delete: true,
                 is_internal: false,
-                is_no_wait: false,
+                is_no_wait: true,
             };
-            declare_exchange(income, outcome, LOCAL_CHANNEL_ID, option)
+            declare_exchange_wait(income, outcome, LOCAL_CHANNEL_ID, option)
         })
         .and_then(|(income, outcome)| {
             let option = DeclareQueueOption {
