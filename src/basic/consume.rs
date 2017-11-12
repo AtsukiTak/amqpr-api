@@ -18,9 +18,9 @@ pub fn start_consume<In, Out, E>(
     option: StartConsumeOption,
 ) -> ConsumeStarted<In, Out>
 where
-    In: Stream,
+    In: Stream<Error = E>,
     In::Item: Borrow<Frame>,
-    Out: Sink<SinkItem = Frame>,
+    Out: Sink<SinkItem = Frame, SinkError = E>,
     E: From<Error>,
 {
     let consume = ConsumeMethod {
