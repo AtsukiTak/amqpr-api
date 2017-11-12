@@ -1,3 +1,3 @@
 pub mod declare;
 
-pub use self::declare::declare_exchange;
+pub use self::declare::declare_exchange_wait;
