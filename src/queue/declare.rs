@@ -12,6 +12,10 @@ use common::{send_and_receive, SendAndReceive};
 use errors::*;
 
 
+/// Declare a queue synchronously.
+/// That means we will wait to receive `Declare-Ok` method after send `Declare` method.
+/// If you want not to wait receiving, you should use `declare_queue` instead.
+/// This function ignores `is_not_wait` flag of option.
 pub fn declare_queue_wait<In, Out, E>(
     income: In,
     outcome: Out,

@@ -11,7 +11,11 @@ use common::{send_and_receive, SendAndReceive};
 use errors::*;
 
 
-pub fn bind_queue<In, Out, E>(
+/// Bind a queue synchronously.
+/// That means we will wait to receive `Declare-Ok` method after send `Declare` method.
+/// If you want not to wait receiving, you should use `declare_queue` instead.
+/// This function ignores `is_not_wait` flag of option.
+pub fn bind_queue_wait<In, Out, E>(
     income: In,
     outcome: Out,
     channel_id: u16,
@@ -28,7 +32,7 @@ where
         queue: option.queue,
         exchange: option.exchange,
         routing_key: option.routing_key,
-        no_wait: option.is_no_wait,
+        no_wait: false,
         arguments: HashMap::new(),
     };
 
