@@ -30,7 +30,7 @@ where
         no_local: option.is_no_local,
         no_ack: option.is_no_ack,
         exclusive: option.is_exclusive,
-        no_wait: option.is_no_wait,
+        no_wait: false,
         arguments: HashMap::new(),
     };
 
