@@ -40,7 +40,7 @@ where
         header: FrameHeader { channel: channel_id },
         payload: FramePayload::Method(MethodPayload::Queue(QueueClass::Bind(bind))),
     };
-    
+
     let find_dec_ok: fn(&Frame) -> bool = |frame| {
         frame
             .method()

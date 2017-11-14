@@ -11,7 +11,7 @@ use common::{send_and_receive, SendAndReceive};
 use errors::*;
 
 
-pub fn start_consume<In, Out, E>(
+pub fn start_consume_wait<In, Out, E>(
     income: In,
     outcome: Out,
     channel_id: u16,

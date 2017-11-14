@@ -11,7 +11,7 @@ use futures::{Future, Stream, Sink};
 use futures::stream::unfold;
 
 use amqpr_api::{start_handshake, declare_exchange_wait, open_channel, bind_queue_wait, declare_queue_wait,
-                start_consume, receive_delivered};
+                start_consume_wait, receive_delivered};
 use amqpr_api::exchange::declare::{ExchangeType, DeclareExchangeOption};
 use amqpr_api::queue::{DeclareQueueOption, BindQueueOption};
 use amqpr_api::basic::StartConsumeOption;
@@ -86,7 +86,7 @@ fn main() {
                 is_exclusive: false,
                 is_no_wait: false,
             };
-            start_consume::<_, _, Error>(income, outcome, LOCAL_CHANNEL_ID, option)
+            start_consume_wait::<_, _, Error>(income, outcome, LOCAL_CHANNEL_ID, option)
         })
         .and_then(|(income, _outcome)| {
             unfold(income, |income| Some(receive_delivered(income)))

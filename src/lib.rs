@@ -53,7 +53,7 @@ pub use handshake::start_handshake;
 pub use channel::open_channel;
 pub use exchange::declare_exchange_wait;
 pub use queue::{declare_queue_wait, bind_queue_wait};
-pub use basic::{publish, receive_delivered, start_consume};
+pub use basic::{publish, receive_delivered, start_consume_wait};
 pub use heartbeat::send_heartbeat;
 
 
