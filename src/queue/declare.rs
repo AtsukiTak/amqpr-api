@@ -83,6 +83,7 @@ where
             .and_then(|c| c.declare_ok())
             .unwrap()
             .clone();
+        debug!("Receive declare-ok response");
         Ok(Async::Ready((dec_ok, income, outcome)))
     }
 }

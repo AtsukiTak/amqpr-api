@@ -90,7 +90,7 @@ where
                         property_flags: 1,
                     }),
                 };
-                debug!("Sending content header : {:?}", frame);
+                debug!("Sent publish method");
                 SendingContentHeader(socket.send(frame))
             }
 
@@ -103,12 +103,14 @@ where
                         payload: FramePayload::ContentBody(payload),
                     }
                 };
-                debug!("Sending content body : {:?}", frame);
+                debug!("Sent content header");
                 SendingContentBody(socket.send(frame))
             }
 
             &mut SendingContentBody(ref mut sending) => {
-                return Ok(Async::Ready(try_ready!(sending)));
+                let sink = try_ready!(sending);
+                debug!("Sent content body");
+                return Ok(Async::Ready(sink));
             }
         };
 
