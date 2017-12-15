@@ -1,6 +1,6 @@
 [package]
 name = "amqpr-api"
-version = "0.4.0"
+version = "0.4.1"
 authors = ["AtsukiTak <takatomgoo@gmail.com>"]
 license = "MIT/Apache-2.0"
 description = "A tokio future based amqp api library"
