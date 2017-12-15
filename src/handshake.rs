@@ -1,5 +1,6 @@
 //! # Connection handshake
 //!
+//! ```text
 //! Client                               AMQP Server
 //!    +                                        +
 //!    |     Protocol header (not framed)       |
@@ -44,6 +45,7 @@
 //!    |                                        |
 //!    |                                        |
 //!    +                                        +
+//! ```
 //!
 //!
 
@@ -51,6 +53,7 @@
 use amqpr_codec::{Frame, FieldArgument};
 use amqpr_codec::method::connection::*;
 use amqpr_codec::method::MethodPayload;
+use amqpr_codec::args::AmqpString;
 
 use futures::sink::Send;
 use futures::{Future, Stream, Sink, Poll, Async};
@@ -127,17 +130,14 @@ impl Handshaker for SimpleHandshaker {
             map.insert("version".into(), LongString("0.2".into()));
             map.insert("platform".into(), LongString("Rust stable".into()));
             map.insert("copyright".into(), LongString("(C) 2017 Atsuki-Tak".into()));
-            map.insert(
-                "information".into(),
-                LongString("It still be developing".into()),
-            );
+            map.insert("information".into(), LongString("WIP".into()));
             map
         };
 
         StartOkMethod {
             client_properties: properties,
             mechanism: "PLAIN".into(),
-            response: format!("{}\0{}\0{}", "", self.user, self.pass),
+            response: AmqpString::from(format!("{}\0{}\0{}", "", self.user, self.pass)),
             locale: "en_US".into(),
         }
     }
@@ -158,7 +158,7 @@ impl Handshaker for SimpleHandshaker {
 
     fn create_open(&mut self) -> OpenMethod {
         OpenMethod {
-            virtual_host: self.virtual_host.clone(),
+            virtual_host: AmqpString::from(self.virtual_host.clone()),
             reserved1: "".into(),
             reserved2: false,
         }
@@ -184,23 +184,23 @@ where
         use self::HandshakeStage::*;
         self.stage = match &mut self.stage {
             &mut SendingProtoHeader(ref mut sending_future) => {
-                let (socket, _buf) = try_ready!(sending_future);
+                let (socket, _buf) = try_ready!(sending_future.poll());
                 ReceivingStart(Should::new(socket.framed(::amqpr_codec::Codec)))
             }
 
             &mut ReceivingStart(ref mut should_socket) => {
-                let frame = poll_item!(should_socket.as_mut());
+                let frame = try_stream_ready!(should_socket.as_mut().poll());
                 let start_ok = start_ok_frame(self.handshaker.reply_to_start(is_start(&frame)?));
                 SendingStartOkOrSecureOk(should_socket.take().send(start_ok))
             }
 
             &mut SendingStartOkOrSecureOk(ref mut sending_future) => {
-                let socket = try_ready!(sending_future);
+                let socket = try_ready!(sending_future.poll());
                 ReceivingSecureOrTune(Should::new(socket))
             }
 
             &mut ReceivingSecureOrTune(ref mut should_socket) => {
-                let frame = poll_item!(should_socket.as_mut());
+                let frame = try_stream_ready!(should_socket.as_mut().poll());
                 match is_secure_or_tune_method(&frame)? {
                     SecureOrTune::Secure(s) => {
                         let secure_ok = secure_ok_frame(self.handshaker.reply_to_secure(s));
@@ -214,18 +214,18 @@ where
             }
 
             &mut SendingTuneOk(ref mut sending_future) => {
-                let socket = try_ready!(sending_future);
+                let socket = try_ready!(sending_future.poll());
                 let open = open_frame(self.handshaker.create_open());
                 SendingOpen(socket.send(open))
             }
 
             &mut SendingOpen(ref mut sending_future) => {
-                let socket = try_ready!(sending_future);
+                let socket = try_ready!(sending_future.poll());
                 ReceivingOpenOk(Should::new(socket))
             }
 
             &mut ReceivingOpenOk(ref mut should_socket) => {
-                let frame = poll_item!(should_socket.as_mut());
+                let frame = try_stream_ready!(should_socket.as_mut().poll());
                 self.handshaker.inspect_open_ok(is_open_ok(&frame)?);
                 return Ok(Async::Ready(should_socket.take()));
             }

@@ -1,31 +1,26 @@
-use amqpr_codec::{Frame, FrameHeader, FramePayload};
+use amqpr_codec::{Frame, FrameHeader, FramePayload, AmqpString};
 use amqpr_codec::method::MethodPayload;
 use amqpr_codec::method::queue::{QueueClass, DeclareMethod};
 pub use amqpr_codec::method::queue::DeclareOkMethod as DeclareResult;
 
 use futures::{Future, Stream, Sink, Poll, Async};
+use futures::sink::Send;
 
 use std::collections::HashMap;
-use std::borrow::Borrow;
 
-use common::{send_and_receive, SendAndReceive};
+use common::Should;
 use errors::*;
 
 
 /// Declare a queue synchronously.
 /// That means we will wait to receive `Declare-Ok` method after send `Declare` method.
-/// If you want not to wait receiving, you should use `declare_queue` instead.
-/// This function ignores `is_not_wait` flag of option.
-pub fn declare_queue_wait<In, Out, E>(
-    income: In,
-    outcome: Out,
+pub fn declare_queue<S, E>(
+    socket: S,
     channel_id: u16,
     option: DeclareQueueOption,
-) -> QueueDeclaredWait<In, Out>
+) -> QueueDeclared<S, E>
 where
-    In: Stream<Error = E>,
-    In::Item: Borrow<Frame>,
-    Out: Sink<SinkItem = Frame, SinkError = E>,
+    S: Stream<Item = Frame, Error = E> + Sink<SinkItem = Frame, SinkError = E>,
     E: From<Error>,
 {
     let declare = DeclareMethod {
@@ -44,54 +39,66 @@ where
         payload: FramePayload::Method(MethodPayload::Queue(QueueClass::Declare(declare))),
     };
 
-    let find_dec_ok: fn(&Frame) -> bool = |frame| {
-        frame
-            .method()
-            .and_then(|m| m.queue())
-            .and_then(|c| c.declare_ok())
-            .is_some()
-    };
-    QueueDeclaredWait { process: send_and_receive(frame, income, outcome, find_dec_ok) }
+    QueueDeclared::Sending(socket.send(frame))
 }
 
 
 
-pub struct QueueDeclaredWait<In, Out>
+pub enum QueueDeclared<S, E>
 where
-    Out: Sink,
-{
-    process: SendAndReceive<In, Out, fn(&Frame) -> bool>,
-}
-
-
-impl<In, Out, E> Future for QueueDeclaredWait<In, Out>
-where
-    In: Stream<Error = E>,
-    In::Item: Borrow<Frame>,
-    Out: Sink<SinkItem = Frame, SinkError = E>,
+    S: Stream<Item = Frame, Error = E> + Sink<SinkItem = Frame, SinkError = E>,
     E: From<Error>,
 {
-    type Item = (DeclareResult, In, Out);
+    Sending(Send<S>),
+    Receiveing(Should<S>),
+}
+
+
+impl<S, E> Future for QueueDeclared<S, E>
+where
+    S: Stream<Item = Frame, Error = E>
+        + Sink<SinkItem = Frame, SinkError = E>,
+    E: From<Error>,
+{
+    type Item = (DeclareResult, S);
     type Error = E;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        let (frame, income, outcome) = try_ready!(self.process);
-        let dec_ok = frame
-            .borrow()
-            .method()
-            .and_then(|m| m.queue())
-            .and_then(|c| c.declare_ok())
-            .unwrap()
-            .clone();
-        debug!("Receive declare-ok response");
-        Ok(Async::Ready((dec_ok, income, outcome)))
+        use self::QueueDeclared::*;
+
+        let state = match self {
+            &mut Sending(ref mut sending) => {
+                let socket = try_ready!(sending.poll());
+                Receiveing(Should::new(socket))
+            }
+            &mut Receiveing(ref mut socket) => {
+                let frame = try_stream_ready!(socket.as_mut().poll());
+                let dec_ok = match frame.method().and_then(|m| m.queue()).and_then(
+                    |c| c.declare_ok(),
+                ) {
+                    Some(dec_ok) => dec_ok.clone(),
+                    None => {
+                        return Err(E::from(Error::from(
+                            ErrorKind::UnexpectedFrame("DeclareOk".into(), frame.clone()),
+                        )))
+                    }
+                };
+                debug!("Receive declare-ok response");
+
+                return Ok(Async::Ready((dec_ok, socket.take())));
+            }
+        };
+
+        *self = state;
+
+        self.poll()
     }
 }
 
 
 #[derive(Clone, Debug)]
 pub struct DeclareQueueOption {
-    pub name: String,
+    pub name: AmqpString,
     pub is_passive: bool,
     pub is_durable: bool,
     pub is_exclusive: bool,

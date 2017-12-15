@@ -1,93 +1,117 @@
-use bytes::Bytes;
-
 use amqpr_codec::Frame;
+use amqpr_codec::content_header::ContentHeaderPayload;
+use amqpr_codec::content_body::ContentBodyPayload;
+use amqpr_codec::frame::method::basic::DeliverMethod;
 
 use futures::{Future, Stream, Poll, Async};
-
-use std::borrow::Borrow;
 
 use common::Should;
 use errors::*;
 
 
-pub fn receive_delivered<S>(stream: S) -> Delivered<S>
+/// Get `DeliveredItem` from given stream.
+/// `DeliveredItem` consists of three things; `DeliverMethod`, `ContentHeaderPayload` and
+/// `ContentBodyPayload`.
+///
+/// # Notice
+/// Maybe it is useful to use `subscribe_stream`. That function returns `Stream` of
+/// `DeliveredItem`.
+///
+/// # Error
+/// `Delivered` future might be `Error` when `stream: S` yields unexpected frame.
+pub fn get_delivered<S>(stream: S) -> Delivered<S>
 where
-    S: Stream,
-    S::Item: Borrow<Frame>,
+    S: Stream<Item = Frame>,
     S::Error: From<Error>,
 {
     Delivered::ReceivingDeliverMethod(Should::new(stream))
 }
 
 
+/// The value in `Future` being returned by `get_delivered` function.
+pub struct DeliveredItem {
+    pub meta: DeliverMethod,
+    pub header: ContentHeaderPayload,
+    pub body: ContentBodyPayload,
+}
+
 
 // Delivered struct {{{
 pub enum Delivered<S> {
     ReceivingDeliverMethod(Should<S>),
-    ReceivingContentHeader(Should<S>),
-    ReceivingContentBody(Should<S>),
+    ReceivingContentHeader(Should<S>, Should<DeliverMethod>),
+    ReceivingContentBody(Should<S>, Should<(DeliverMethod, ContentHeaderPayload)>),
 }
 
 
 impl<S> Future for Delivered<S>
 where
-    S: Stream,
-    S::Item: Borrow<Frame>,
+    S: Stream<Item = Frame>,
     S::Error: From<Error>,
 {
-    type Item = (Bytes, S);
+    type Item = (DeliveredItem, S);
     type Error = S::Error;
 
-    fn poll(&mut self) -> Poll<(Bytes, S), S::Error> {
+    fn poll(&mut self) -> Poll<(DeliveredItem, S), S::Error> {
 
         use self::Delivered::*;
         *self = match self {
 
-            // Receive deliver method frame. Ignore another frame.
             &mut ReceivingDeliverMethod(ref mut socket) => {
-                let deliver = loop {
-                    let frame = poll_item!(socket.as_mut());
+                let frame = try_stream_ready!(socket.as_mut().poll());
 
-                    let deliver = frame.borrow().method().and_then(|m| m.basic()).and_then(
-                        |c| {
-                            c.deliver()
-                        },
-                    );
-                    match deliver {
-                        Some(del) => break del.clone(),
-                        None => continue,
+                let is_deliver = frame.method().and_then(|m| m.basic()).and_then(
+                    |c| c.deliver(),
+                );
+                let deliver = match is_deliver {
+                    Some(del) => del.clone(),
+                    None => {
+                        return Err(S::Error::from(Error::from(
+                            ErrorKind::UnexpectedFrame("Deliver".into(), frame.clone()),
+                        )))
                     }
                 };
                 info!("Deliver method is received : {:?}", deliver);
-                ReceivingContentHeader(Should::new(socket.take()))
+                ReceivingContentHeader(Should::new(socket.take()), Should::new(deliver))
             }
 
-            // Ignore another frame.
-            &mut ReceivingContentHeader(ref mut socket) => {
-                let ch = loop {
-                    let frame = poll_item!(socket.as_mut());
-                    match frame.borrow().content_header() {
-                        Some(ch) => break ch.clone(),
-                        None => continue,
+            &mut ReceivingContentHeader(ref mut socket, ref mut deliver) => {
+                let frame = try_stream_ready!(socket.as_mut().poll());
+                let header = match frame.content_header() {
+                    Some(ch) => ch.clone(),
+                    None => {
+                        return Err(S::Error::from(Error::from(
+                            ErrorKind::UnexpectedFrame("Deliver".into(), frame.clone()),
+                        )))
                     }
                 };
-                info!("Content header is received : {:?}", ch);
+                info!("Content header is received : {:?}", header);
 
-                ReceivingContentBody(Should::new(socket.take()))
+                ReceivingContentBody(
+                    Should::new(socket.take()),
+                    Should::new((deliver.take(), header)),
+                )
             }
 
-            // Ignore another frame.
-            &mut ReceivingContentBody(ref mut socket) => {
-                let cb = loop {
-                    let frame = poll_item!(socket.as_mut());
-                    match frame.borrow().content_body() {
-                        Some(cb) => break cb.clone(),
-                        None => continue,
+            &mut ReceivingContentBody(ref mut socket, ref mut piece) => {
+                let frame = try_stream_ready!(socket.as_mut().poll());
+                let body = match frame.content_body() {
+                    Some(cb) => cb.clone(),
+                    None => {
+                        return Err(S::Error::from(Error::from(
+                            ErrorKind::UnexpectedFrame("Deliver".into(), frame.clone()),
+                        )))
                     }
                 };
 
-                info!("Content body is received : {:?}", cb);
-                return Ok(Async::Ready((cb.bytes.clone(), socket.take())));
+                info!("Content body is received : {:?}", body);
+                let (meta, header) = piece.take();
+                let item = DeliveredItem {
+                    meta: meta,
+                    header: header,
+                    body: body,
+                };
+                return Ok(Async::Ready((item, socket.take())));
             }
         };
 

@@ -16,9 +16,9 @@ error_chain! {
             description("Fail to complete handshake")
             display("Fail to complete handshake")
         }
-        UnexpectedFrame {
+        UnexpectedFrame(expected: String, found: ::amqpr_codec::Frame) {
             description("Receive unexpected frame")
-            display("Receive unexpected frame")
+            display("Expected \"{}\" but found \"{:?}\"", expected, found)
         }
     }
 }

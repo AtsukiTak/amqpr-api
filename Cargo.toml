@@ -17,7 +17,7 @@ bytes = "0.4"
 log = "0.3"
 error-chain = "0.11"
 
-amqpr-codec = "0.2"
+amqpr-codec = "0.3"
 
 [dev-dependencies]
 log4rs = "0.7"

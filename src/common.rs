@@ -1,13 +1,4 @@
-use amqpr_codec::Frame;
-
-use futures::{Stream, Sink, Future, Poll, Async};
-use futures::sink::Send;
-
-use std::borrow::Borrow;
-
-use errors::*;
-
-
+#[derive(Debug, Clone)]
 pub struct Should<T>(Option<T>);
 
 impl<T> Should<T> {
@@ -37,6 +28,7 @@ impl<T> Should<T> {
 
 
 
+/*
 pub fn send_and_receive<In, Out, F>(
     msg: Out::SinkItem,
     income: In,
@@ -89,7 +81,7 @@ where
         use self::SendAndReceiveState::*;
         self.state = match &mut self.state {
             &mut Sending(ref mut income, ref mut sending) => {
-                let out = try_ready!(sending);
+                let out = try_ready!(sending.poll());
                 Receiving(Should::new(income.take()), Should::new(out))
             }
             &mut Receiving(ref mut income, ref mut outcome) => {
@@ -105,3 +97,4 @@ where
         self.poll()
     }
 }
+*/

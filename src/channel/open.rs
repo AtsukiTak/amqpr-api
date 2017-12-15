@@ -2,20 +2,22 @@ use amqpr_codec::{Frame, FrameHeader, FramePayload};
 use amqpr_codec::method::MethodPayload;
 use amqpr_codec::method::channel::{ChannelClass, OpenMethod};
 
-use futures::{Future, Stream, Sink, Poll, Async};
+use futures::{Future, Stream, Sink};
 
-use std::borrow::Borrow;
-
-use common::{send_and_receive, SendAndReceive};
 use errors::*;
 
 
-pub fn open_channel<In, Out, E>(income: In, outcome: Out, channel_id: u16) -> ChannelOpen<In, Out>
+pub type ChannelOpenFuture<S, E> = Box<Future<Item = (Frame, S), Error = E>>;
+
+
+/// Open new channel with given channel id.
+///
+/// Returned future consists of `Frame` and `S` but for now, `Frame` is meanless
+/// because it has nothing.
+pub fn open_channel<S, E>(socket: S, channel_id: u16) -> ChannelOpenFuture<S, E>
 where
-    In: Stream<Error = E>,
-    Out: Sink<SinkItem = Frame, SinkError = E>,
-    E: From<Error>,
-    In::Item: Borrow<Frame>,
+    S: Stream<Item = Frame, Error = E> + Sink<SinkItem = Frame, SinkError = E> + 'static,
+    E: From<Error> + 'static,
 {
     let open = OpenMethod { reserved1: "".into() };
     let frame = Frame {
@@ -23,39 +25,13 @@ where
         payload: FramePayload::Method(MethodPayload::Channel(ChannelClass::Open(open))),
     };
 
-    let find_open_ok: fn(&Frame) -> bool = |frame| {
-        frame
-            .method()
-            .and_then(|c| c.channel())
-            .and_then(|m| m.open_ok())
-            .is_some()
-    };
-
-    ChannelOpen { process: send_and_receive(frame, income, outcome, find_open_ok) }
-}
-
-
-
-pub struct ChannelOpen<In, Out>
-where
-    Out: Sink,
-{
-    process: SendAndReceive<In, Out, fn(&Frame) -> bool>,
-}
-
-
-impl<In, Out, E> Future for ChannelOpen<In, Out>
-where
-    In: Stream<Error = E>,
-    Out: Sink<SinkError = E>,
-    E: From<Error>,
-    In::Item: Borrow<Frame>,
-{
-    type Item = (In, Out);
-    type Error = E;
-
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        let (_open_ok, income, outcome) = try_ready!(self.process);
-        Ok(Async::Ready((income, outcome)))
-    }
+    Box::new(
+        socket
+            .send(frame)
+            .and_then(move |socket| socket.into_future().map_err(|(err, _s)| err))
+            .and_then(|(frame_opt, socket)| match frame_opt {
+                None => Err(E::from(Error::from(ErrorKind::UnexpectedConnectionClose))),
+                Some(open_ok) => Ok((open_ok, socket)),
+            }),
+    ) as ChannelOpenFuture<S, E>
 }

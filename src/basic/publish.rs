@@ -1,6 +1,6 @@
-use amqpr_codec::{Frame, FrameHeader, FramePayload};
+use amqpr_codec::{Frame, FrameHeader, FramePayload, AmqpString};
 use amqpr_codec::content_body::ContentBodyPayload;
-use amqpr_codec::content_header::ContentHeaderPayload;
+use amqpr_codec::content_header::{ContentHeaderPayload, Properties};
 use amqpr_codec::method::MethodPayload;
 use amqpr_codec::method::basic::{BasicClass, PublishMethod};
 
@@ -12,16 +12,21 @@ use futures::sink::Send;
 use common::Should;
 
 
-pub fn publish<S>(sink: S, channel_id: u16, bytes: Bytes, option: PublishOption) -> Published<S>
+/// Publish an item to AMQP server.
+/// If you want to publish a lot number of items, please consider to use `publish_sink` function.
+/// Returned item is `Future` which will be completed when finish to send.
+pub fn publish<S>(sink: S, channel_id: u16, item: PublishItem) -> Published<S>
 where
     S: Sink<SinkItem = Frame>,
 {
+    let (meta, header, body) = (item.meta, item.header, item.body);
+
     let declare = PublishMethod {
         reserved1: 0,
-        exchange: option.exchange,
-        routing_key: option.routing_key,
-        mandatory: option.is_mandatory,
-        immediate: option.is_immediate,
+        exchange: meta.exchange,
+        routing_key: meta.routing_key,
+        mandatory: meta.is_mandatory,
+        immediate: meta.is_immediate,
     };
 
     let frame = Frame {
@@ -30,21 +35,34 @@ where
     };
 
     debug!("Sending publish method : {:?}", frame);
+
     Published {
-        state: SendingContentState::SendingPublishMethod(sink.send(frame)),
-        bytes: Should::new(bytes),
+        state: SendingContentState::SendingPublishMethod(
+            sink.send(frame),
+            Should::new(header),
+            Should::new(body),
+        ),
         channel_id: channel_id,
     }
 }
 
 
 
+/// A meta option of `Publish` message on AMQP.
 #[derive(Clone, Debug)]
 pub struct PublishOption {
-    pub exchange: String,
-    pub routing_key: String,
+    pub exchange: AmqpString,
+    pub routing_key: AmqpString,
     pub is_mandatory: bool,
     pub is_immediate: bool,
+}
+
+
+#[derive(Clone, Debug)]
+pub struct PublishItem {
+    pub meta: PublishOption,
+    pub header: Properties,
+    pub body: Bytes,
 }
 
 
@@ -55,7 +73,6 @@ where
     S: Sink<SinkItem = Frame>,
 {
     state: SendingContentState<S>,
-    bytes: Should<Bytes>,
     channel_id: u16,
 }
 
@@ -63,8 +80,8 @@ pub enum SendingContentState<S>
 where
     S: Sink<SinkItem = Frame>,
 {
-    SendingPublishMethod(Send<S>),
-    SendingContentHeader(Send<S>),
+    SendingPublishMethod(Send<S>, Should<Properties>, Should<Bytes>),
+    SendingContentHeader(Send<S>, Should<Bytes>),
     SendingContentBody(Send<S>),
 }
 
@@ -80,24 +97,25 @@ where
 
         use self::SendingContentState::*;
         self.state = match &mut self.state {
-            &mut SendingPublishMethod(ref mut sending) => {
-                let socket = try_ready!(sending);
+            &mut SendingPublishMethod(ref mut sending, ref mut properties, ref mut bytes) => {
+                let socket = try_ready!(sending.poll());
+                let header = ContentHeaderPayload {
+                    class_id: 60,
+                    body_size: bytes.as_ref().len() as u64,
+                    properties: properties.take(),
+                };
                 let frame = Frame {
                     header: FrameHeader { channel: self.channel_id },
-                    payload: FramePayload::ContentHeader(ContentHeaderPayload {
-                        class_id: 60,
-                        body_size: self.bytes.as_ref().len() as u64,
-                        property_flags: 1,
-                    }),
+                    payload: FramePayload::ContentHeader(header),
                 };
                 debug!("Sent publish method");
-                SendingContentHeader(socket.send(frame))
+                SendingContentHeader(socket.send(frame), bytes.clone())
             }
 
-            &mut SendingContentHeader(ref mut sending) => {
-                let socket = try_ready!(sending);
+            &mut SendingContentHeader(ref mut sending, ref mut bytes) => {
+                let socket = try_ready!(sending.poll());
                 let frame = {
-                    let payload = ContentBodyPayload { bytes: self.bytes.take() };
+                    let payload = ContentBodyPayload { bytes: bytes.take() };
                     Frame {
                         header: FrameHeader { channel: self.channel_id },
                         payload: FramePayload::ContentBody(payload),
@@ -108,7 +126,7 @@ where
             }
 
             &mut SendingContentBody(ref mut sending) => {
-                let sink = try_ready!(sending);
+                let sink = try_ready!(sending.poll());
                 debug!("Sent content body");
                 return Ok(Async::Ready(sink));
             }
