@@ -15,7 +15,7 @@ use common::Should;
 /// Publish an item to AMQP server.
 /// If you want to publish a lot number of items, please consider to use `publish_sink` function.
 /// Returned item is `Future` which will be completed when finish to send.
-pub fn publish<S>(sink: S, channel_id: u16, item: PublishItem) -> Published<S>
+pub fn publish<S>(channel_id: u16, socket: S, item: PublishItem) -> Published<S>
 where
     S: Sink<SinkItem = Frame>,
 {
@@ -38,7 +38,7 @@ where
 
     Published {
         state: SendingContentState::SendingPublishMethod(
-            sink.send(frame),
+            socket.send(frame),
             Should::new(header),
             Should::new(body),
         ),
@@ -126,9 +126,9 @@ where
             }
 
             &mut SendingContentBody(ref mut sending) => {
-                let sink = try_ready!(sending.poll());
+                let socket = try_ready!(sending.poll());
                 debug!("Sent content body");
-                return Ok(Async::Ready(sink));
+                return Ok(Async::Ready(socket));
             }
         };
 

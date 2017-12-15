@@ -45,6 +45,7 @@ pub use handshake::start_handshake;
 pub use channel::open_channel;
 pub use exchange::declare_exchange;
 pub use queue::{declare_queue, bind_queue};
+pub use basic::{publish, get_delivered, start_consume};
 pub use subscribe_stream::subscribe_stream;
 pub use publish_sink::publish_sink;
 

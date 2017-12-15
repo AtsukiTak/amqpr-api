@@ -2,7 +2,7 @@
 
 use futures::{Future, Stream, Sink, Poll, Async};
 
-use amqpr_codec::{Frame, AmqpString};
+use amqpr_codec::Frame;
 
 use basic::consume::{start_consume, ConsumeStarted};
 use basic::deliver::{get_delivered, Delivered, DeliveredItem};
@@ -27,7 +27,7 @@ pub use basic::consume::StartConsumeOption;
 /// - no-ack: true
 /// - exclusive: true
 /// - no-wait: true
-pub fn subscribe_stream<S, E,>(
+pub fn subscribe_stream<S, E>(
     ch_id: u16,
     socket: S,
     option: StartConsumeOption,
@@ -36,7 +36,7 @@ where
     S: Stream<Item = Frame, Error = E> + Sink<SinkItem = Frame, SinkError = E>,
     E: From<Error>,
 {
-    let consume_started = start_consume(socket, ch_id, option);
+    let consume_started = start_consume(ch_id, socket, option);
     let sub_stream = SubscribeStream::SendingConsumeMethod(consume_started);
 
     sub_stream

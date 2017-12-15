@@ -60,7 +60,7 @@ where
             &mut Processing(ref mut _published) => unreachable!(),
             &mut Waiting(ref mut sink) => {
                 let sink = sink.take();
-                let published = publish(sink, self.channel, item);
+                let published = publish(self.channel, sink, item);
                 Processing(published)
             }
         };

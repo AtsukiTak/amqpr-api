@@ -17,7 +17,7 @@ pub type ConsumeStarted<S> = Send<S>;
 ///
 /// # Notice
 /// A message being sent by this function is `no-wait` mode.
-pub fn start_consume<S>(socket: S, channel_id: u16, option: StartConsumeOption) -> ConsumeStarted<S>
+pub fn start_consume<S>(channel_id: u16, socket: S, option: StartConsumeOption) -> ConsumeStarted<S>
 where
     S: Sink<SinkItem = Frame>,
     S::SinkError: From<Error>,
