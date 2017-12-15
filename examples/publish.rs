@@ -12,22 +12,22 @@ use futures::{Future, Stream, Sink};
 
 use bytes::Bytes;
 
-use amqpr_codec::Frame;
+use amqpr_codec::content_header::Properties;
 
-use amqpr_api::{start_handshake, declare_exchange_wait, open_channel, publish, AmqpSocket};
+use amqpr_api::{start_handshake, declare_exchange, open_channel, publish_sink};
 use amqpr_api::exchange::declare::{ExchangeType, DeclareExchangeOption};
-use amqpr_api::basic::publish::{PublishOption, Published};
+use amqpr_api::basic::publish::{PublishOption, PublishItem};
 use amqpr_api::handshake::SimpleHandshaker;
 use amqpr_api::errors::*;
 
 
 const LOCAL_CHANNEL_ID: u16 = 42;
+const EXCHANGE_NAME: &'static str = "example";
 
 fn main() {
     logger();
 
     let mut core = Core::new().unwrap();
-    let handle = core.handle();
 
     let handshaker = SimpleHandshaker {
         user: "guest".into(),
@@ -38,47 +38,44 @@ fn main() {
     let future = TcpStream::connect(&"127.0.0.1:5672".parse().unwrap(), &core.handle())
         .map_err(|e| Error::from(e))
         .and_then(|socket| start_handshake(handshaker, socket))
-        .and_then(|socket| Ok(socket.split()))
-        .and_then(|(outcome, income)| Ok((income.map_err(|e| Error::from(e)), outcome.sink_map_err(|e| Error::from(e)))))
-        .and_then(|(income, outcome)| {
-            open_channel(income, outcome, LOCAL_CHANNEL_ID)
-        })
-        .and_then(|(income, outcome)| {
+        .and_then(|socket| open_channel(LOCAL_CHANNEL_ID, socket))
+        .and_then(|socket| {
             let option = DeclareExchangeOption {
-                name: "example".into(),
+                name: EXCHANGE_NAME.into(),
                 typ: ExchangeType::Fanout,
                 is_passive: false,
                 is_durable: false,
                 is_auto_delete: true,
                 is_internal: false,
-                is_no_wait: true,
             };
-            declare_exchange_wait(income, outcome, LOCAL_CHANNEL_ID, option)
+            declare_exchange(LOCAL_CHANNEL_ID, socket, option)
         })
-        .and_then(move |(_income, outcome)| {
-            let interval = Interval::new(std::time::Duration::new(1, 0), &handle).unwrap();
-            interval
-                .map_err(|e| Error::from(e))
-                .fold(outcome, |outcome, _| {
-                    inner_publish(outcome)
-                })
-        });
+        .map(move |socket| publish_sink(LOCAL_CHANNEL_ID, socket));
 
-    core.run(future).unwrap();
+    let sink = core.run(future).unwrap();
+
+    let stream = {
+        let interval = Interval::new(::std::time::Duration::new(1, 0), &core.handle()).unwrap();
+        interval.map(|()| publish_item())
+    };
+
+    let _ = core.run(sink.send_all(stream));
 }
 
-fn inner_publish<Out>(outcome: Out) -> Published<Out>
-where
-    Out: Sink<SinkItem = Frame>,
-{
+
+fn publish_item() -> PublishItem {
     let option = PublishOption {
-        exchange: "example".into(),
+        exchange: EXCHANGE_NAME.into(),
         routing_key: "".into(),
         is_mandatory: false,
         is_immediate: false,
     };
-    let bytes = Bytes::from_static(b"pubish example");
-    publish(outcome, LOCAL_CHANNEL_ID, bytes, option)
+
+    PublishItem {
+        meta: option,
+        header: Properties::new(),
+        body: Bytes::from_static(b"amqpr-api example"),
+    }
 }
 
 

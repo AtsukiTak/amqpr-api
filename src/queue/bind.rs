@@ -12,13 +12,9 @@ pub type QueueBound<S> = Send<S>;
 
 /// Bind a queue asynchronously.
 /// That means we won't wait to receive `Declare-Ok` method after send `Declare` method.
-pub fn bind_queue<S, E>(
-    socket: S,
-    channel_id: u16,
-    option: BindQueueOption,
-) -> QueueBound<S>
+pub fn bind_queue<S>(channel_id: u16, socket: S, option: BindQueueOption) -> QueueBound<S>
 where
-    S: Sink<SinkItem = Frame>
+    S: Sink<SinkItem = Frame>,
 {
     let bind = BindMethod {
         reserved1: 0,
@@ -43,5 +39,4 @@ pub struct BindQueueOption {
     pub queue: AmqpString,
     pub exchange: AmqpString,
     pub routing_key: AmqpString,
-    pub is_no_wait: bool,
 }

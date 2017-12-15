@@ -185,7 +185,7 @@ where
         self.stage = match &mut self.stage {
             &mut SendingProtoHeader(ref mut sending_future) => {
                 let (socket, _buf) = try_ready!(sending_future.poll());
-                ReceivingStart(Should::new(socket.framed(::amqpr_codec::Codec)))
+                ReceivingStart(Should::new(AmqpSocket(socket.framed(::amqpr_codec::Codec))))
             }
 
             &mut ReceivingStart(ref mut should_socket) => {

@@ -15,8 +15,8 @@ use errors::*;
 /// Declare a queue synchronously.
 /// That means we will wait to receive `Declare-Ok` method after send `Declare` method.
 pub fn declare_queue<S, E>(
-    socket: S,
     channel_id: u16,
+    socket: S,
     option: DeclareQueueOption,
 ) -> QueueDeclared<S, E>
 where
@@ -78,9 +78,10 @@ where
                 ) {
                     Some(dec_ok) => dec_ok.clone(),
                     None => {
-                        return Err(E::from(Error::from(
-                            ErrorKind::UnexpectedFrame("DeclareOk".into(), frame.clone()),
-                        )))
+                        return Err(E::from(Error::from(ErrorKind::UnexpectedFrame(
+                            "DeclareOk".into(),
+                            frame.clone(),
+                        ))))
                     }
                 };
                 debug!("Receive declare-ok response");
@@ -103,5 +104,4 @@ pub struct DeclareQueueOption {
     pub is_durable: bool,
     pub is_exclusive: bool,
     pub is_auto_delete: bool,
-    pub is_no_wait: bool,
 }

@@ -27,31 +27,23 @@ pub use basic::consume::StartConsumeOption;
 /// - no-ack: true
 /// - exclusive: true
 /// - no-wait: true
-pub fn subscribe_stream<S, E, T, U>(
+pub fn subscribe_stream<S, E,>(
     ch_id: u16,
     socket: S,
-    queue: T,
-    consumer_tag: U,
+    option: StartConsumeOption,
 ) -> SubscribeStream<S, E>
 where
     S: Stream<Item = Frame, Error = E> + Sink<SinkItem = Frame, SinkError = E>,
     E: From<Error>,
-    T: Into<AmqpString>,
-    U: Into<AmqpString>,
 {
-    let option = StartConsumeOption {
-        queue: queue.into(),
-        consumer_tag: consumer_tag.into(),
-        is_no_local: false,
-        is_no_ack: true,
-        is_exclusive: true,
-    };
-
     let consume_started = start_consume(socket, ch_id, option);
     let sub_stream = SubscribeStream::SendingConsumeMethod(consume_started);
 
     sub_stream
 }
+
+
+
 
 
 

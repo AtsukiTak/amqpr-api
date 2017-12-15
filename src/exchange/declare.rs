@@ -13,8 +13,8 @@ pub type ExchangeDeclared<S> = Send<S>;
 /// Declare exchange asynchronously.
 /// That means we won't wait to receive `Declare-Ok` method after send `Declare` method.
 pub fn declare_exchange<S>(
-    socket: S,
     channel_id: u16,
+    socket: S,
     option: DeclareExchangeOption,
 ) -> ExchangeDeclared<S>
 where

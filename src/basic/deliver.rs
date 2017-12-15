@@ -29,6 +29,7 @@ where
 
 
 /// The value in `Future` being returned by `get_delivered` function.
+#[derive(Debug, Clone)]
 pub struct DeliveredItem {
     pub meta: DeliverMethod,
     pub header: ContentHeaderPayload,

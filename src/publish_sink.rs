@@ -12,7 +12,7 @@ use common::Should;
 /// Returns `BroadcastSink` which is `Sink` of `PublishItem`.
 ///
 /// You may also need to have a look at `PublishItem` document.
-pub fn publish_sink<S, E>(channel: u16, socket: S) -> BroadcastSink<S>
+pub fn publish_sink<S>(channel: u16, socket: S) -> BroadcastSink<S>
 where
     S: Sink<SinkItem = Frame>,
 {

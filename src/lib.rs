@@ -48,10 +48,40 @@ pub use queue::{declare_queue, bind_queue};
 pub use subscribe_stream::subscribe_stream;
 pub use publish_sink::publish_sink;
 
-use futures::{Async, AsyncSink, Stream, Sink};
+use futures::{Async, AsyncSink, Stream, Sink, Poll, StartSend};
+use errors::Error;
+use amqpr_codec::Frame;
 
 
-pub type AmqpSocket = tokio_io::codec::Framed<tokio_core::net::TcpStream, amqpr_codec::Codec>;
+type RawSocket = tokio_io::codec::Framed<tokio_core::net::TcpStream, amqpr_codec::Codec>;
+
+pub struct AmqpSocket(RawSocket);
+
+impl Stream for AmqpSocket {
+    type Item = Frame;
+    type Error = Error;
+
+    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+        self.0.poll().map_err(|io_err| Error::from(io_err))
+    }
+}
+
+impl Sink for AmqpSocket {
+    type SinkItem = Frame;
+    type SinkError = Error;
+
+    fn start_send(&mut self, item: Frame) -> StartSend<Frame, Error> {
+        self.0.start_send(item).map_err(|io_err| Error::from(io_err))
+    }
+
+    fn poll_complete(&mut self) -> Poll<(), Error> {
+        self.0.poll_complete().map_err(|io_err| Error::from(io_err))
+    }
+
+    fn close(&mut self) -> Poll<(), Error> {
+        self.0.close().map_err(|io_err| Error::from(io_err))
+    }
+}
 
 
 /// This struct is useful when the case such as some functions require `S: Stream + Sink` but your socket is
@@ -72,7 +102,10 @@ impl<In: Stream, Out: Sink> Sink for InOut<In, Out> {
     type SinkItem = Out::SinkItem;
     type SinkError = Out::SinkError;
 
-    fn start_send(&mut self, item: Out::SinkItem) -> Result<AsyncSink<Out::SinkItem>, Out::SinkError> {
+    fn start_send(
+        &mut self,
+        item: Out::SinkItem,
+    ) -> Result<AsyncSink<Out::SinkItem>, Out::SinkError> {
         self.1.start_send(item)
     }
 

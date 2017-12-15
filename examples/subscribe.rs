@@ -7,11 +7,10 @@ extern crate log4rs;
 
 use tokio_core::reactor::Core;
 use tokio_core::net::TcpStream;
-use futures::{Future, Stream, Sink};
-use futures::stream::unfold;
+use futures::{Future, Stream};
 
-use amqpr_api::{start_handshake, declare_exchange_wait, open_channel, bind_queue_wait, declare_queue_wait,
-                start_consume_wait, receive_delivered};
+use amqpr_api::{start_handshake, declare_exchange, open_channel, bind_queue, declare_queue,
+                subscribe_stream};
 use amqpr_api::exchange::declare::{ExchangeType, DeclareExchangeOption};
 use amqpr_api::queue::{DeclareQueueOption, BindQueueOption};
 use amqpr_api::basic::StartConsumeOption;
@@ -20,6 +19,8 @@ use amqpr_api::errors::*;
 
 
 const LOCAL_CHANNEL_ID: u16 = 42;
+const EXCHANGE_NAME: &'static str = "example";
+const QUEUE_NAME: &'static str = "example";
 
 fn main() {
     logger();
@@ -35,65 +36,50 @@ fn main() {
     let future = TcpStream::connect(&"127.0.0.1:5672".parse().unwrap(), &core.handle())
         .map_err(|e| Error::from(e))
         .and_then(|socket| start_handshake(handshaker, socket))
-        .and_then(|socket| Ok(socket.split()))
-        .and_then(|(outcome, income)| {
-            Ok((
-                income.map_err(|e| Error::from(e)),
-                outcome.sink_map_err(|e| Error::from(e)),
-            ))
-        })
-        .and_then(|(income, outcome)| {
-            open_channel(income, outcome, LOCAL_CHANNEL_ID)
-        })
-        .and_then(|(income, outcome)| {
+        .and_then(|socket| open_channel(LOCAL_CHANNEL_ID, socket))
+        .and_then(|socket| {
             let option = DeclareExchangeOption {
-                name: "example".into(),
+                name: EXCHANGE_NAME.into(),
                 typ: ExchangeType::Fanout,
                 is_passive: false,
                 is_durable: false,
                 is_auto_delete: true,
                 is_internal: false,
-                is_no_wait: true,
             };
-            declare_exchange_wait(income, outcome, LOCAL_CHANNEL_ID, option)
+            declare_exchange(LOCAL_CHANNEL_ID, socket, option)
         })
-        .and_then(|(income, outcome)| {
+        .and_then(|socket| {
             let option = DeclareQueueOption {
-                name: "example".into(),
+                name: QUEUE_NAME.into(),
                 is_passive: false,
                 is_durable: false,
                 is_exclusive: false,
                 is_auto_delete: true,
-                is_no_wait: false,
             };
-            declare_queue_wait(income, outcome, LOCAL_CHANNEL_ID, option)
+            declare_queue(LOCAL_CHANNEL_ID, socket, option)
         })
-        .and_then(|(_res, income, outcome)| {
+        .and_then(|(res, socket)| {
             let option = BindQueueOption {
-                queue: "example".into(),
-                exchange: "example".into(),
+                queue: res.queue,
+                exchange: EXCHANGE_NAME.into(),
                 routing_key: "".into(),
-                is_no_wait: false,
             };
-            bind_queue_wait(income, outcome, LOCAL_CHANNEL_ID, option)
+            bind_queue(LOCAL_CHANNEL_ID, socket, option)
         })
-        .and_then(|(income, outcome)| {
+        .map(|socket| {
             let option = StartConsumeOption {
-                queue: "example".into(),
+                queue: QUEUE_NAME.into(),
                 consumer_tag: "".into(),
                 is_no_local: false,
                 is_no_ack: true,
-                is_exclusive: false,
-                is_no_wait: false,
+                is_exclusive: true,
             };
-            start_consume_wait::<_, _, Error>(income, outcome, LOCAL_CHANNEL_ID, option)
-        })
-        .and_then(|(income, _outcome)| {
-            unfold(income, |income| Some(receive_delivered(income)))
-                .for_each(|bytes| Ok(println!("{:?}", bytes)))
+            subscribe_stream(LOCAL_CHANNEL_ID, socket, option)
         });
 
-    core.run(future).unwrap();
+    let stream = core.run(future).unwrap();
+
+    let _ = core.run(stream.for_each(|item| Ok(println!("{:?}", item))));
 }
 
 
