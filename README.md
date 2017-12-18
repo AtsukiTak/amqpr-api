@@ -8,7 +8,7 @@ A tokio future based amqp api library.
 [![Crates.io](https://img.shields.io/crates/v/amqpr-api.svg)](https://crates.io/crates/amqpr-api)
 
 
-This library provides low lovel api. I recommend you to use [`amqpr`](https://github.com/AtsukiTak/amqpr) library instead.
+This library provides simple AMQP api as function. Such as `start_handshake`, `open_channel` and `publish`.
 
 
 # Examples
