@@ -34,7 +34,7 @@ fn main() {
     let future = TcpStream::connect(&"127.0.0.1:5672".parse().unwrap(), &core.handle())
         .map_err(|e| Error::from(e))
         .and_then(|socket| start_handshake(handshaker, socket))
-        .and_then(|socket| open_channel(socket, LOCAL_CHANNEL_ID))
+        .and_then(|socket| open_channel(LOCAL_CHANNEL_ID, socket))
         .and_then(|socket| {
             let option = DeclareExchangeOption {
                 name: "bind_queue_test".into(),
@@ -43,9 +43,8 @@ fn main() {
                 is_durable: false,
                 is_auto_delete: true,
                 is_internal: false,
-                is_no_wait: false,
             };
-            declare_exchange(socket, LOCAL_CHANNEL_ID, option)
+            declare_exchange(LOCAL_CHANNEL_ID, socket, option)
         })
         .and_then(|socket| {
             let option = DeclareQueueOption {
@@ -54,18 +53,16 @@ fn main() {
                 is_durable: false,
                 is_exclusive: false,
                 is_auto_delete: true,
-                is_no_wait: false,
             };
-            declare_queue(socket, LOCAL_CHANNEL_ID, option).map(|(_result, socket)| socket)
+            declare_queue(LOCAL_CHANNEL_ID, socket, option).map(|(_result, socket)| socket)
         })
         .and_then(|socket| {
             let option = BindQueueOption {
                 queue: "bind_queue_test".into(),
                 exchange: "bind_queue_test".into(),
                 routing_key: "".into(),
-                is_no_wait: false,
             };
-            bind_queue(socket, LOCAL_CHANNEL_ID, option)
+            bind_queue(LOCAL_CHANNEL_ID, socket, option)
         });
 
     core.run(future).unwrap();
@@ -73,7 +70,7 @@ fn main() {
 
 
 fn logger() {
-    use log::LogLevelFilter;
+    use log::LevelFilter;
     use log4rs::append::console::ConsoleAppender;
     use log4rs::config::{Appender, Config, Root};
     let stdout = ConsoleAppender::builder().build();
@@ -81,7 +78,7 @@ fn logger() {
     let config = Config::builder()
         .appender(Appender::builder().build("stdout", Box::new(stdout)))
         .build(Root::builder().appender("stdout").build(
-            LogLevelFilter::Info,
+            LevelFilter::Info,
         ))
         .unwrap();
 
