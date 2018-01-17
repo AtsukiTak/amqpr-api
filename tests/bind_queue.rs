@@ -1,21 +1,20 @@
 extern crate amqpr_api;
-extern crate tokio_core;
-extern crate futures;
 extern crate bytes;
-extern crate log;
+extern crate futures;
 extern crate log4rs;
+extern crate log;
+extern crate tokio_core;
 
 use tokio_core::reactor::Core;
 use tokio_core::net::TcpStream;
 use futures::Future;
 
-use amqpr_api::{start_handshake, open_channel, declare_exchange, declare_queue, bind_queue};
+use amqpr_api::{bind_queue, declare_exchange, declare_queue, open_channel, start_handshake};
 use amqpr_api::queue::declare::DeclareQueueOption;
 use amqpr_api::queue::bind::BindQueueOption;
 use amqpr_api::exchange::declare::{DeclareExchangeOption, ExchangeType};
 use amqpr_api::handshake::SimpleHandshaker;
 use amqpr_api::errors::*;
-
 
 const LOCAL_CHANNEL_ID: u16 = 42;
 
@@ -68,7 +67,6 @@ fn main() {
     core.run(future).unwrap();
 }
 
-
 fn logger() {
     use log::LevelFilter;
     use log4rs::append::console::ConsoleAppender;
@@ -77,9 +75,7 @@ fn logger() {
 
     let config = Config::builder()
         .appender(Appender::builder().build("stdout", Box::new(stdout)))
-        .build(Root::builder().appender("stdout").build(
-            LevelFilter::Info,
-        ))
+        .build(Root::builder().appender("stdout").build(LevelFilter::Info))
         .unwrap();
 
     let _handle = log4rs::init_config(config).unwrap();

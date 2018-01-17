@@ -3,15 +3,13 @@ use amqpr_codec::args::AmqpString;
 use amqpr_codec::method::MethodPayload;
 use amqpr_codec::method::basic::{BasicClass, ConsumeMethod};
 
-use futures::sink::{Sink, Send};
+use futures::sink::{Send, Sink};
 
 use std::collections::HashMap;
 
 use errors::*;
 
-
 pub type ConsumeStarted<S> = Send<S>;
-
 
 /// Send `Consume` message to AMQP server.
 ///
@@ -34,13 +32,14 @@ where
     };
 
     let frame = Frame {
-        header: FrameHeader { channel: channel_id },
+        header: FrameHeader {
+            channel: channel_id,
+        },
         payload: FramePayload::Method(MethodPayload::Basic(BasicClass::Consume(consume))),
     };
 
     socket.send(frame)
 }
-
 
 #[derive(Debug, Clone)]
 pub struct StartConsumeOption {

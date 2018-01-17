@@ -1,14 +1,12 @@
-use amqpr_codec::{Frame, FrameHeader, FramePayload, AmqpString};
+use amqpr_codec::{AmqpString, Frame, FrameHeader, FramePayload};
 use amqpr_codec::method::MethodPayload;
-use amqpr_codec::method::queue::{QueueClass, BindMethod};
+use amqpr_codec::method::queue::{BindMethod, QueueClass};
 
-use futures::sink::{Sink, Send};
+use futures::sink::{Send, Sink};
 
 use std::collections::HashMap;
 
-
 pub type QueueBound<S> = Send<S>;
-
 
 /// Bind a queue asynchronously.
 /// That means we won't wait to receive `Declare-Ok` method after send `Declare` method.
@@ -26,14 +24,14 @@ where
     };
 
     let frame = Frame {
-        header: FrameHeader { channel: channel_id },
+        header: FrameHeader {
+            channel: channel_id,
+        },
         payload: FramePayload::Method(MethodPayload::Queue(QueueClass::Bind(bind))),
     };
 
     socket.send(frame)
 }
-
-
 
 pub struct BindQueueOption {
     pub queue: AmqpString,

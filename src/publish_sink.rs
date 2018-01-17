@@ -1,13 +1,10 @@
 //! Convenient module to publish item.
-use futures::{Sink, Future, Poll, StartSend, Async, AsyncSink};
+use futures::{Async, AsyncSink, Future, Poll, Sink, StartSend};
 
 use amqpr_codec::Frame;
 
-use basic::publish::{publish, Published, PublishItem};
+use basic::publish::{publish, PublishItem, Published};
 use common::Should;
-
-
-
 
 /// Returns `BroadcastSink` which is `Sink` of `PublishItem`.
 ///
@@ -22,7 +19,6 @@ where
     }
 }
 
-
 /// A outbound endpoint to publish data.
 pub struct BroadcastSink<S>
 where
@@ -32,7 +28,6 @@ where
     state: PublishState<S>,
 }
 
-
 enum PublishState<S>
 where
     S: Sink<SinkItem = Frame>,
@@ -40,7 +35,6 @@ where
     Processing(Published<S>),
     Waiting(Should<S>),
 }
-
 
 impl<S> Sink for BroadcastSink<S>
 where
@@ -50,7 +44,6 @@ where
     type SinkError = S::SinkError;
 
     fn start_send(&mut self, item: PublishItem) -> StartSend<PublishItem, Self::SinkError> {
-
         if let Async::NotReady = self.poll_complete()? {
             return Ok(AsyncSink::NotReady(item));
         }
@@ -67,7 +60,6 @@ where
 
         Ok(AsyncSink::Ready)
     }
-
 
     fn poll_complete(&mut self) -> Poll<(), Self::SinkError> {
         use self::PublishState::*;

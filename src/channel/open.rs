@@ -2,12 +2,11 @@ use amqpr_codec::{Frame, FrameHeader, FramePayload};
 use amqpr_codec::method::MethodPayload;
 use amqpr_codec::method::channel::{ChannelClass, OpenMethod};
 
-use futures::{Future, Stream, Sink, Poll, Async};
+use futures::{Async, Future, Poll, Sink, Stream};
 use futures::sink::Send;
 
 use common::Should;
 use errors::*;
-
 
 /// Open new channel with given channel id.
 ///
@@ -18,15 +17,18 @@ where
     S: Stream<Item = Frame, Error = E> + Sink<SinkItem = Frame, SinkError = E>,
     E: From<Error>,
 {
-    let open = OpenMethod { reserved1: "".into() };
+    let open = OpenMethod {
+        reserved1: "".into(),
+    };
     let frame = Frame {
-        header: FrameHeader { channel: channel_id },
+        header: FrameHeader {
+            channel: channel_id,
+        },
         payload: FramePayload::Method(MethodPayload::Channel(ChannelClass::Open(open))),
     };
 
     ChannelOpened::Sending(socket.send(frame))
 }
-
 
 pub enum ChannelOpened<S>
 where
@@ -36,11 +38,9 @@ where
     Receiving(Should<S>),
 }
 
-
 impl<S, E> Future for ChannelOpened<S>
 where
-    S: Stream<Item = Frame, Error = E>
-        + Sink<SinkItem = Frame, SinkError = E>,
+    S: Stream<Item = Frame, Error = E> + Sink<SinkItem = Frame, SinkError = E>,
     E: From<Error>,
 {
     type Item = S;
@@ -56,14 +56,17 @@ where
             }
             &mut Receiving(ref mut socket) => {
                 let frame = try_stream_ready!(socket.as_mut().poll());
-                match frame.method().and_then(|m| m.channel()).and_then(
-                    |c| c.open_ok(),
-                ) {
+                match frame
+                    .method()
+                    .and_then(|m| m.channel())
+                    .and_then(|c| c.open_ok())
+                {
                     Some(_open_ok) => return Ok(Async::Ready(socket.take())),
                     None => {
-                        return Err(E::from(Error::from(
-                            ErrorKind::UnexpectedFrame("OpenOk".into(), frame.clone()),
-                        )))
+                        return Err(E::from(Error::from(ErrorKind::UnexpectedFrame(
+                            "OpenOk".into(),
+                            frame.clone(),
+                        ))))
                     }
                 }
             }

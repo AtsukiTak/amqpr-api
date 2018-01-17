@@ -1,16 +1,15 @@
-use amqpr_codec::{Frame, FrameHeader, FramePayload, AmqpString};
+use amqpr_codec::{AmqpString, Frame, FrameHeader, FramePayload};
 use amqpr_codec::method::MethodPayload;
-use amqpr_codec::method::queue::{QueueClass, DeclareMethod};
+use amqpr_codec::method::queue::{DeclareMethod, QueueClass};
 pub use amqpr_codec::method::queue::DeclareOkMethod as DeclareResult;
 
-use futures::{Future, Stream, Sink, Poll, Async};
+use futures::{Async, Future, Poll, Sink, Stream};
 use futures::sink::Send;
 
 use std::collections::HashMap;
 
 use common::Should;
 use errors::*;
-
 
 /// Declare a queue synchronously.
 /// That means we will wait to receive `Declare-Ok` method after send `Declare` method.
@@ -35,14 +34,14 @@ where
     };
 
     let frame = Frame {
-        header: FrameHeader { channel: channel_id },
+        header: FrameHeader {
+            channel: channel_id,
+        },
         payload: FramePayload::Method(MethodPayload::Queue(QueueClass::Declare(declare))),
     };
 
     QueueDeclared::Sending(socket.send(frame))
 }
-
-
 
 pub enum QueueDeclared<S, E>
 where
@@ -53,11 +52,9 @@ where
     Receiveing(Should<S>),
 }
 
-
 impl<S, E> Future for QueueDeclared<S, E>
 where
-    S: Stream<Item = Frame, Error = E>
-        + Sink<SinkItem = Frame, SinkError = E>,
+    S: Stream<Item = Frame, Error = E> + Sink<SinkItem = Frame, SinkError = E>,
     E: From<Error>,
 {
     type Item = (DeclareResult, S);
@@ -73,9 +70,11 @@ where
             }
             &mut Receiveing(ref mut socket) => {
                 let frame = try_stream_ready!(socket.as_mut().poll());
-                let dec_ok = match frame.method().and_then(|m| m.queue()).and_then(
-                    |c| c.declare_ok(),
-                ) {
+                let dec_ok = match frame
+                    .method()
+                    .and_then(|m| m.queue())
+                    .and_then(|c| c.declare_ok())
+                {
                     Some(dec_ok) => dec_ok.clone(),
                     None => {
                         return Err(E::from(Error::from(ErrorKind::UnexpectedFrame(
@@ -95,7 +94,6 @@ where
         self.poll()
     }
 }
-
 
 #[derive(Clone, Debug)]
 pub struct DeclareQueueOption {

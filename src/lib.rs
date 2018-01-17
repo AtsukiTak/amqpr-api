@@ -3,18 +3,17 @@
 //! There is two kind of channel controllers; GlobalChannelController and LocalChannelController.
 //!
 
-extern crate tokio_core;
-extern crate tokio_io;
-#[macro_use]
-extern crate futures;
 extern crate bytes;
 #[macro_use]
-extern crate log;
-#[macro_use]
 extern crate error_chain;
+#[macro_use]
+extern crate futures;
+#[macro_use]
+extern crate log;
+extern crate tokio_core;
+extern crate tokio_io;
 
 extern crate amqpr_codec;
-
 
 macro_rules! try_stream_ready {
     ($polled: expr) => {
@@ -28,7 +27,6 @@ macro_rules! try_stream_ready {
     }
 }
 
-
 pub mod channel;
 pub mod exchange;
 pub mod queue;
@@ -40,20 +38,18 @@ pub mod handshake;
 pub mod errors;
 pub(crate) mod common;
 
-
 pub use handshake::start_handshake;
 pub use channel::open_channel;
 pub use exchange::declare_exchange;
-pub use queue::{declare_queue, bind_queue};
+pub use queue::{bind_queue, declare_queue};
 pub use basic::{get_delivered, start_consume};
 pub use basic::publish::publish;
 pub use subscribe_stream::subscribe_stream;
 pub use publish_sink::publish_sink;
 
-use futures::{Async, AsyncSink, Stream, Sink, Poll, StartSend};
+use futures::{Async, AsyncSink, Poll, Sink, StartSend, Stream};
 use errors::Error;
 use amqpr_codec::Frame;
-
 
 type RawSocket = tokio_io::codec::Framed<tokio_core::net::TcpStream, amqpr_codec::Codec>;
 
@@ -73,7 +69,9 @@ impl Sink for AmqpSocket {
     type SinkError = Error;
 
     fn start_send(&mut self, item: Frame) -> StartSend<Frame, Error> {
-        self.0.start_send(item).map_err(|io_err| Error::from(io_err))
+        self.0
+            .start_send(item)
+            .map_err(|io_err| Error::from(io_err))
     }
 
     fn poll_complete(&mut self) -> Poll<(), Error> {
@@ -84,7 +82,6 @@ impl Sink for AmqpSocket {
         self.0.close().map_err(|io_err| Error::from(io_err))
     }
 }
-
 
 /// This struct is useful when the case such as some functions require `S: Stream + Sink` but your socket is
 /// separeted into `Stream` and `Sink`.
@@ -98,7 +95,6 @@ impl<In: Stream, Out: Sink> Stream for InOut<In, Out> {
         self.0.poll()
     }
 }
-
 
 impl<In: Stream, Out: Sink> Sink for InOut<In, Out> {
     type SinkItem = Out::SinkItem;

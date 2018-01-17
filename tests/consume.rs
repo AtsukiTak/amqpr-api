@@ -1,10 +1,10 @@
 extern crate amqpr_api;
 extern crate amqpr_codec;
-extern crate tokio_core;
-extern crate futures;
 extern crate bytes;
-extern crate log;
+extern crate futures;
 extern crate log4rs;
+extern crate log;
+extern crate tokio_core;
 
 use tokio_core::reactor::Core;
 use tokio_core::net::TcpStream;
@@ -13,14 +13,13 @@ use futures::Future;
 use bytes::Bytes;
 
 use amqpr_codec::args::Properties;
-use amqpr_api::{start_handshake, declare_exchange, open_channel, publish, bind_queue,
-                declare_queue, start_consume, get_delivered};
-use amqpr_api::exchange::declare::{ExchangeType, DeclareExchangeOption};
-use amqpr_api::queue::{DeclareQueueOption, BindQueueOption};
-use amqpr_api::basic::{PublishOption, PublishItem, StartConsumeOption};
+use amqpr_api::{bind_queue, declare_exchange, declare_queue, get_delivered, open_channel, publish,
+                start_consume, start_handshake};
+use amqpr_api::exchange::declare::{DeclareExchangeOption, ExchangeType};
+use amqpr_api::queue::{BindQueueOption, DeclareQueueOption};
+use amqpr_api::basic::{PublishItem, PublishOption, StartConsumeOption};
 use amqpr_api::handshake::SimpleHandshaker;
 use amqpr_api::errors::*;
-
 
 const LOCAL_CHANNEL_ID: u16 = 42;
 
@@ -98,7 +97,6 @@ fn main() {
 
     core.run(future).unwrap();
 }
-
 
 fn logger() {
     use log::LevelFilter;

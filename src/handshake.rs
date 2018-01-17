@@ -49,14 +49,13 @@
 //!
 //!
 
-
-use amqpr_codec::{Frame, FieldArgument};
+use amqpr_codec::{FieldArgument, Frame};
 use amqpr_codec::method::connection::*;
 use amqpr_codec::method::MethodPayload;
 use amqpr_codec::args::AmqpString;
 
 use futures::sink::Send;
-use futures::{Future, Stream, Sink, Poll, Async};
+use futures::{Async, Future, Poll, Sink, Stream};
 
 use tokio_core::net::TcpStream;
 use tokio_io::io::{write_all, WriteAll};
@@ -69,7 +68,6 @@ use errors::*;
 const PROTOCOL_HEADER: [u8; 8] = [b'A', b'M', b'Q', b'P', 0, 0, 9, 1];
 const GLOBAL_CHANNEL_ID: u16 = 0;
 
-
 pub fn start_handshake<H>(handshaker: H, socket: TcpStream) -> Handshaking<H>
 where
     H: Handshaker,
@@ -80,8 +78,6 @@ where
     }
 }
 
-
-
 pub struct Handshaking<H>
 where
     H: Handshaker,
@@ -89,7 +85,6 @@ where
     stage: HandshakeStage,
     handshaker: H,
 }
-
 
 // HandshakeStage {{{
 enum HandshakeStage {
@@ -102,7 +97,6 @@ enum HandshakeStage {
     ReceivingOpenOk(Should<AmqpSocket>),
 }
 // }}}
-
 
 // Handshaker {{{
 pub trait Handshaker {
@@ -170,7 +164,6 @@ impl Handshaker for SimpleHandshaker {
 }
 // }}}
 
-
 // Implement Future for Handshaking {{{
 impl<H> Future for Handshaking<H>
 where
@@ -180,7 +173,6 @@ where
     type Error = Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-
         use self::HandshakeStage::*;
         self.stage = match &mut self.stage {
             &mut SendingProtoHeader(ref mut sending_future) => {
@@ -235,7 +227,6 @@ where
     }
 }
 
-
 fn start_ok_frame(start_ok: StartOkMethod) -> Frame {
     connection_frame(ConnectionClass::StartOk(start_ok))
 }
@@ -259,7 +250,6 @@ fn connection_frame(connection_class: ConnectionClass) -> Frame {
     )
 }
 
-
 fn is_start(frame: &Frame) -> Result<&StartMethod, Error> {
     frame
         .method()
@@ -267,7 +257,6 @@ fn is_start(frame: &Frame) -> Result<&StartMethod, Error> {
         .and_then(|c| c.start())
         .ok_or(Error::from(ErrorKind::FailToHandshake))
 }
-
 
 enum SecureOrTune<'a> {
     Secure(&'a SecureMethod),
@@ -285,7 +274,6 @@ fn is_secure_or_tune_method<'a>(frame: &'a Frame) -> Result<SecureOrTune<'a>, Er
         })
         .ok_or(Error::from(ErrorKind::FailToHandshake))
 }
-
 
 fn is_open_ok(frame: &Frame) -> Result<&OpenOkMethod, Error> {
     frame

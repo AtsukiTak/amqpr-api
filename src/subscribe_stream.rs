@@ -46,7 +46,6 @@ where
 
 
 
-
 /// Stream of subscribed item from AMQP server.
 /// This stream is based on `no_ack` consume because of performance.
 /// But that may cause decreasing of reliability.

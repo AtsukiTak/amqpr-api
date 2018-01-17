@@ -1,4 +1,4 @@
-use amqpr_codec::{Frame, FrameHeader, FramePayload, AmqpString};
+use amqpr_codec::{AmqpString, Frame, FrameHeader, FramePayload};
 use amqpr_codec::content_body::ContentBodyPayload;
 use amqpr_codec::content_header::{ContentHeaderPayload, Properties};
 use amqpr_codec::method::MethodPayload;
@@ -6,11 +6,10 @@ use amqpr_codec::method::basic::{BasicClass, PublishMethod};
 
 use bytes::Bytes;
 
-use futures::{Future, Sink, Poll, Async};
+use futures::{Async, Future, Poll, Sink};
 use futures::sink::Send;
 
 use common::Should;
-
 
 /// Publish an item to AMQP server.
 /// If you want to publish a lot number of items, please consider to use `publish_sink` function.
@@ -30,7 +29,9 @@ where
     };
 
     let frame = Frame {
-        header: FrameHeader { channel: channel_id },
+        header: FrameHeader {
+            channel: channel_id,
+        },
         payload: FramePayload::Method(MethodPayload::Basic(BasicClass::Publish(declare))),
     };
 
@@ -46,8 +47,6 @@ where
     }
 }
 
-
-
 /// A meta option of `Publish` message on AMQP.
 #[derive(Clone, Debug)]
 pub struct PublishOption {
@@ -57,15 +56,12 @@ pub struct PublishOption {
     pub is_immediate: bool,
 }
 
-
 #[derive(Clone, Debug)]
 pub struct PublishItem {
     pub meta: PublishOption,
     pub header: Properties,
     pub body: Bytes,
 }
-
-
 
 // Published struct {{{
 pub struct Published<S>
@@ -85,7 +81,6 @@ where
     SendingContentBody(Send<S>),
 }
 
-
 impl<S> Future for Published<S>
 where
     S: Sink<SinkItem = Frame>,
@@ -94,7 +89,6 @@ where
     type Error = S::SinkError;
 
     fn poll(&mut self) -> Poll<S, S::SinkError> {
-
         use self::SendingContentState::*;
         self.state = match &mut self.state {
             &mut SendingPublishMethod(ref mut sending, ref mut properties, ref mut bytes) => {
@@ -105,7 +99,9 @@ where
                     properties: properties.take(),
                 };
                 let frame = Frame {
-                    header: FrameHeader { channel: self.channel_id },
+                    header: FrameHeader {
+                        channel: self.channel_id,
+                    },
                     payload: FramePayload::ContentHeader(header),
                 };
                 debug!("Sent publish method");
@@ -115,9 +111,13 @@ where
             &mut SendingContentHeader(ref mut sending, ref mut bytes) => {
                 let socket = try_ready!(sending.poll());
                 let frame = {
-                    let payload = ContentBodyPayload { bytes: bytes.take() };
+                    let payload = ContentBodyPayload {
+                        bytes: bytes.take(),
+                    };
                     Frame {
-                        header: FrameHeader { channel: self.channel_id },
+                        header: FrameHeader {
+                            channel: self.channel_id,
+                        },
                         payload: FramePayload::ContentBody(payload),
                     }
                 };

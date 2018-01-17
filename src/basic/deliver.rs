@@ -3,11 +3,11 @@ use amqpr_codec::content_header::ContentHeaderPayload;
 use amqpr_codec::content_body::ContentBodyPayload;
 use amqpr_codec::frame::method::basic::DeliverMethod;
 
-use futures::{Future, Stream, Poll, Async};
+use futures::{Async, Future, Poll, Stream};
 
+use basic::publish::PublishItem;
 use common::Should;
 use errors::*;
-
 
 /// Get `DeliveredItem` from given stream.
 /// `DeliveredItem` consists of three things; `DeliverMethod`, `ContentHeaderPayload` and
@@ -27,7 +27,6 @@ where
     Delivered::ReceivingDeliverMethod(Should::new(stream))
 }
 
-
 /// The value in `Future` being returned by `get_delivered` function.
 #[derive(Debug, Clone)]
 pub struct DeliveredItem {
@@ -36,6 +35,11 @@ pub struct DeliveredItem {
     pub body: ContentBodyPayload,
 }
 
+impl DeliveredItem {
+    pub fn make_response(&self) -> PublishItem {
+        panic!();
+    }
+}
 
 // Delivered struct {{{
 pub enum Delivered<S> {
@@ -43,7 +47,6 @@ pub enum Delivered<S> {
     ReceivingContentHeader(Should<S>, Should<DeliverMethod>),
     ReceivingContentBody(Should<S>, Should<(DeliverMethod, ContentHeaderPayload)>),
 }
-
 
 impl<S> Future for Delivered<S>
 where
@@ -54,22 +57,22 @@ where
     type Error = S::Error;
 
     fn poll(&mut self) -> Poll<(DeliveredItem, S), S::Error> {
-
         use self::Delivered::*;
         *self = match self {
-
             &mut ReceivingDeliverMethod(ref mut socket) => {
                 let frame = try_stream_ready!(socket.as_mut().poll());
 
-                let is_deliver = frame.method().and_then(|m| m.basic()).and_then(
-                    |c| c.deliver(),
-                );
+                let is_deliver = frame
+                    .method()
+                    .and_then(|m| m.basic())
+                    .and_then(|c| c.deliver());
                 let deliver = match is_deliver {
                     Some(del) => del.clone(),
                     None => {
-                        return Err(S::Error::from(Error::from(
-                            ErrorKind::UnexpectedFrame("Deliver".into(), frame.clone()),
-                        )))
+                        return Err(S::Error::from(Error::from(ErrorKind::UnexpectedFrame(
+                            "Deliver".into(),
+                            frame.clone(),
+                        ))))
                     }
                 };
                 info!("Deliver method is received : {:?}", deliver);
@@ -81,9 +84,10 @@ where
                 let header = match frame.content_header() {
                     Some(ch) => ch.clone(),
                     None => {
-                        return Err(S::Error::from(Error::from(
-                            ErrorKind::UnexpectedFrame("Deliver".into(), frame.clone()),
-                        )))
+                        return Err(S::Error::from(Error::from(ErrorKind::UnexpectedFrame(
+                            "Deliver".into(),
+                            frame.clone(),
+                        ))))
                     }
                 };
                 info!("Content header is received : {:?}", header);
@@ -99,9 +103,10 @@ where
                 let body = match frame.content_body() {
                     Some(cb) => cb.clone(),
                     None => {
-                        return Err(S::Error::from(Error::from(
-                            ErrorKind::UnexpectedFrame("Deliver".into(), frame.clone()),
-                        )))
+                        return Err(S::Error::from(Error::from(ErrorKind::UnexpectedFrame(
+                            "Deliver".into(),
+                            frame.clone(),
+                        ))))
                     }
                 };
 

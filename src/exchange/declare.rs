@@ -1,14 +1,12 @@
-use amqpr_codec::{Frame, FrameHeader, FramePayload, AmqpString};
+use amqpr_codec::{AmqpString, Frame, FrameHeader, FramePayload};
 use amqpr_codec::method::MethodPayload;
-use amqpr_codec::method::exchange::{ExchangeClass, DeclareMethod};
+use amqpr_codec::method::exchange::{DeclareMethod, ExchangeClass};
 
-use futures::sink::{Sink, Send};
+use futures::sink::{Send, Sink};
 
 use std::collections::HashMap;
 
-
 pub type ExchangeDeclared<S> = Send<S>;
-
 
 /// Declare exchange asynchronously.
 /// That means we won't wait to receive `Declare-Ok` method after send `Declare` method.
@@ -33,14 +31,14 @@ where
     };
 
     let frame = Frame {
-        header: FrameHeader { channel: channel_id },
+        header: FrameHeader {
+            channel: channel_id,
+        },
         payload: FramePayload::Method(MethodPayload::Exchange(ExchangeClass::Declare(declare))),
     };
 
     socket.send(frame)
 }
-
-
 
 #[derive(Debug, Clone)]
 pub struct DeclareExchangeOption {
